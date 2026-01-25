@@ -1,27 +1,26 @@
+/**
+ * Core Philosophy: This ruleset enforces a security model that strictly separates private user data from public and administrative data.
+ * The primary goal is to ensure that users can only access their own information while allowing administrators global oversight and management capabilities.
+ *
+ * Data Structure: Most user-specific data (like orders, transactions, and notifications) is nested hierarchically under the /users/{userId} path. This path-based ownership is the primary mechanism for securing user data.
+ * Top-level collections are used for data with different access patterns: `support_tickets` for collaborative user-admin interaction, `faqs` for public read-only content, and `loyalty_programs` for admin-only configurations.
+ *
+ * Key Security Decisions:
+ * - User Data Privacy: All collections under `/users/{userId}` are strictly owned by that user. No other user can read or write to this data tree.
+ * - Admin Roles: Administrative privileges are determined by the existence of a user's UID in the `/roles_admin` collection. This collection is not client-accessible and must be managed via a trusted server environment.
+ * - No User Enumeration: Listing documents in the top-level `/users` collection is explicitly forbidden to protect user privacy.
+ * - Public vs. Private: Data is segregated by structure. `/faqs` is public for reads, while all other data requires authentication. `support_tickets` allow a user to create a ticket, which can then be seen and managed by admins or the original user.
+ *
+ * Denormalization for Authorization: To ensure fast and secure rule evaluation, `userId` is denormalized onto documents like `SupportTicket`, `Order`, and `Transaction`. This avoids slow and costly `get()` calls in security rules, allowing for direct ownership checks against the document's own data.
+ *
+ * Structural Segregation: The ruleset leverages separate collections for data with different access controls. For example, private `/users/{userId}/notifications` are kept separate from the public `/faqs` collection, allowing for simple and performant security rules on each.
+ */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /**
-     * Core Philosophy: This ruleset enforces a security model that combines strict user-ownership with role-based access control (RBAC) for administrative functions. The primary goal is to ensure that user data is private and can only be accessed by the user themselves, while global application settings are managed by a designated set of administrators.
-     *
-     * Data Structure: User-specific data (profiles, orders, notifications, etc.) is hierarchically organized under the `/users/{userId}` collection tree. This path-based structure simplifies ownership rules. Global data, such as `/loyalty_programs` and the highly sensitive `/toolkit_apis`, are top-level collections. Administrator roles are managed via a lookup collection, `/roles_admin`, which allows for efficient role checks without querying user documents.
-     *
-     * Key Security Decisions:
-     * - User data is strictly private. A user can only access documents within their own `/users/{userId}` path. User enumeration via listing the top-level `/users` collection is explicitly forbidden.
-     * - Administrator privileges are required for managing global configurations. Admin status is determined by the existence of a document in the `/roles_admin/{userId}` collection.
-     * - Sensitive data, specifically the `/toolkit_apis` collection containing API keys, is accessible only to administrators for both reads and writes. This is the most secure posture.
-     * - Publicly readable data, like `/loyalty_programs`, allows anonymous read access (`get`, `list`) but restricts all write operations to administrators.
-     *
-     * Denormalization for Authorization: The rules rely on the `/roles_admin` collection to quickly check for admin privileges using a single `exists()` call. This avoids needing to read a `role` field from a user's profile document, which would be slower and more complex. For user-owned subcollections, we enforce that a `userId` field is present on creation to link documents back to their owner, ensuring data integrity.
-     *
-     * Structural Segregation: The separation of private user data (`/users/{userId}/...`) from public (`/loyalty_programs`) and admin-only (`/toolkit_apis`) collections is a core design choice. This structure provides strong security boundaries and improves query performance by ensuring that queries do not need to filter mixed-privacy data.
-     */
-
-    // -------------------------------------------------------------------------
-    // Helper Functions
-    // -------------------------------------------------------------------------
-
+    // Helper functions to abstract and simplify rule logic.
+    
     /**
      * Checks if the user is authenticated.
      */
@@ -30,180 +29,172 @@ service cloud.firestore {
     }
 
     /**
-     * Checks if the authenticated user is a designated administrator.
-     * Admin status is granted by the existence of a document in the `roles_admin` collection.
-     */
-    function isAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
-    }
-
-    /**
-     * Checks if the authenticated user's UID matches the provided userId from the path.
-     * This is the foundation of the user-ownership model.
+     * Checks if the authenticated user's UID matches the provided userId.
+     * This is the primary function for enforcing document ownership.
      */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
     /**
-     * Verifies that the document being operated on already exists in Firestore.
-     * CRITICAL for safe update and delete operations.
+     * Checks if the authenticated user is an administrator.
+     * Admin status is determined by the existence of their UID in the /roles_admin collection.
+     */
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
+    /**
+     * Verifies that a document already exists.
+     * CRITICAL for all update and delete operations to prevent modifying non-existent data.
      */
     function isExistingDoc() {
       return resource != null;
     }
 
     /**
-     * A convenience function that combines an ownership check with an existence check.
-     * Used for all update and delete operations on user-owned documents.
-     */
-    function isExistingOwner(userId) {
-      return isOwner(userId) && isExistingDoc();
-    }
-
-    /**
-     * On create, validates that the incoming document's `userId` field matches the owner's UID.
-     * This enforces relational integrity from the client.
-     */
-    function hasCorrectOwnerFieldOnCreate(userId) {
-      return request.resource.data.userId == userId;
-    }
-
-    /**
-     * On update, ensures that the `userId` field cannot be changed.
-     * This prevents re-assigning a document to another user.
-     */
-    function ownerFieldIsImmutable() {
-      return request.resource.data.userId == resource.data.userId;
-    }
-
-    // -------------------------------------------------------------------------
-    // Collection Rules
-    // -------------------------------------------------------------------------
-
-    /**
-     * @description Manages user profile documents. Users can create their own profile, but can only read, update, or delete their own document. Listing all users is forbidden to prevent user enumeration.
+     * @description
+     * Stores user profile information. A user's own profile document is the root
+     * for all their private, user-owned data.
      * @path /users/{userId}
-     * @allow (create) An authenticated user with UID 'user123' creating their own document at `/users/user123`.
-     * @deny (list) Any user, including admins, attempting to list the `/users` collection.
-     * @deny (get) A user with UID 'user123' trying to read `/users/user456`.
-     * @principle Enforces self-creation and strict ownership of a user's root document. Prevents data leakage through user enumeration.
+     * @allow (create) A new user can create their own profile document.
+     * @deny (get) An authenticated user `user_abc` CANNOT read the profile of `user_xyz`.
+     * @principle Restricts access to a user's own data tree and enforces Self-Creation.
      */
     match /users/{userId} {
       allow get: if isOwner(userId);
       allow list: if false;
       allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
+      allow update: if isOwner(userId) && isExistingDoc() && request.resource.data.id == resource.data.id;
+      allow delete: if isOwner(userId) && isExistingDoc();
     }
 
     /**
-     * @description Secures a user's orders. Only the user who owns the data tree can access their orders.
+     * @description
+     * Stores a user's order history. Access is restricted to the user who owns the data.
      * @path /users/{userId}/orders/{orderId}
-     * @allow (get) An authenticated user with UID 'user123' reading an order at `/users/user123/orders/orderXYZ`.
-     * @allow (list) An authenticated user with UID 'user123' listing all their orders at `/users/user123/orders`.
-     * @deny (create) A user with UID 'user123' trying to create an order at `/users/user456/orders/orderABC`.
-     * @principle Restricts access to a user's own data tree using path-based ownership.
+     * @allow (get, list) A user can read their own list of orders.
+     * @deny (create) A user `user_abc` CANNOT create an order under `user_xyz`'s profile.
+     * @principle Enforces path-based ownership for a user's private subcollections.
      */
     match /users/{userId}/orders/{orderId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && hasCorrectOwnerFieldOnCreate(userId);
-      allow update: if isExistingOwner(userId) && ownerFieldIsImmutable();
-      allow delete: if isExistingOwner(userId);
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isOwner(userId) && isExistingDoc() && request.resource.data.userId == resource.data.userId;
+      allow delete: if isOwner(userId) && isExistingDoc();
     }
 
     /**
-     * @description Secures a user's financial transactions. Only the user who owns the data tree can access their transactions.
+     * @description
+     * Stores a user's transaction history. Access is restricted to the user.
      * @path /users/{userId}/transactions/{transactionId}
-     * @allow (get) An authenticated user with UID 'user123' reading a transaction at `/users/user123/transactions/tx_XYZ`.
-     * @deny (list) A user with UID 'user456' trying to list transactions at `/users/user123/transactions`.
-     * @principle Restricts access to a user's own data tree using path-based ownership.
+     * @allow (get, list) A user can read their own list of transactions.
+     * @deny (get) A user `user_abc` CANNOT read transactions belonging to `user_xyz`.
+     * @principle Enforces path-based ownership for a user's private subcollections.
      */
     match /users/{userId}/transactions/{transactionId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && hasCorrectOwnerFieldOnCreate(userId);
-      allow update: if isExistingOwner(userId) && ownerFieldIsImmutable();
-      allow delete: if isExistingOwner(userId);
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isOwner(userId) && isExistingDoc() && request.resource.data.userId == resource.data.userId;
+      allow delete: if isOwner(userId) && isExistingDoc();
     }
 
     /**
-     * @description Secures a user's support tickets. Only the user who owns the data tree can access their tickets.
-     * @path /users/{userId}/support_tickets/{supportTicketId}
-     * @allow (get) An authenticated user with UID 'user123' reading a ticket at `/users/user123/support_tickets/ticket_XYZ`.
-     * @deny (update) A user with UID 'user456' trying to update a ticket at `/users/user123/support_tickets/ticket_XYZ`.
-     * @principle Restricts access to a user's own data tree using path-based ownership.
-     */
-    match /users/{userId}/support_tickets/{supportTicketId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && hasCorrectOwnerFieldOnCreate(userId);
-      allow update: if isExistingOwner(userId) && ownerFieldIsImmutable();
-      allow delete: if isExistingOwner(userId);
-    }
-
-    /**
-     * @description Secures a user's notifications. Only the user who owns the data tree can access their notifications.
+     * @description
+     * Stores notifications for a specific user. Only readable by the owner.
      * @path /users/{userId}/notifications/{notificationId}
-     * @allow (get) An authenticated user with UID 'user123' reading a notification at `/users/user123/notifications/notif_XYZ`.
-     * @deny (delete) A user with UID 'user456' trying to delete a notification at `/users/user123/notifications/notif_XYZ`.
-     * @principle Restricts access to a user's own data tree using path-based ownership.
+     * @allow (update) A user can update a notification, for example to mark it as read.
+     * @deny (list) An admin CANNOT list notifications for a specific user to protect privacy.
+     * @principle Enforces path-based ownership for a user's private subcollections.
      */
     match /users/{userId}/notifications/{notificationId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && hasCorrectOwnerFieldOnCreate(userId);
-      allow update: if isExistingOwner(userId) && ownerFieldIsImmutable();
-      allow delete: if isExistingOwner(userId);
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isOwner(userId) && isExistingDoc() && request.resource.data.userId == resource.data.userId;
+      allow delete: if isOwner(userId) && isExistingDoc();
     }
 
     /**
-     * @description Manages loyalty program configurations. This data is considered public and can be read by anyone, but can only be modified by administrators.
+     * @description
+     * Stores personalized product recommendations for a user. These are read-only for the user
+     * and are expected to be written by a trusted backend service.
+     * @path /users/{userId}/product_recommendations/{recommendationId}
+     * @allow (get) A user can read their own product recommendations.
+     * @deny (create, update, delete) A user CANNOT modify their own recommendations.
+     * @principle Enforces read-only access for data managed by backend processes.
+     */
+    match /users/{userId}/product_recommendations/{recommendationId} {
+      allow get, list: if isOwner(userId);
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * @description
+     * Stores support tickets created by users. Users can create and view their own tickets.
+     * Admins have full read and write access to all tickets for management purposes.
+     * @path /support_tickets/{ticketId}
+     * @allow (create) An authenticated user can create a support ticket for themselves.
+     * @deny (list) A regular user CANNOT list all support tickets in the system.
+     * @principle Implements shared access between a document owner and an administrator.
+     */
+    match /support_tickets/{ticketId} {
+      allow get: if isOwner(resource.data.userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isSignedIn() && isOwner(request.resource.data.userId);
+      allow update: if (isOwner(resource.data.userId) || isAdmin()) && isExistingDoc() && request.resource.data.userId == resource.data.userId;
+      allow delete: if (isOwner(resource.data.userId) || isAdmin()) && isExistingDoc();
+    }
+
+    /**
+     * @description
+     * Stores frequently asked questions (FAQs). This data is public for anyone to read,
+     * but can only be modified by an administrator.
+     * @path /faqs/{faqId}
+     * @allow (get, list) Any user, including unauthenticated users, can read FAQs.
+     * @deny (create, update, delete) A non-admin user CANNOT modify the public FAQ content.
+     * @principle Implements public read access with admin-only writes for global content.
+     */
+    match /faqs/{faqId} {
+      allow get, list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin() && isExistingDoc();
+      allow delete: if isAdmin() && isExistingDoc();
+    }
+
+    /**
+     * @description
+     * Stores loyalty program configurations. This is sensitive data that should only be
+     * managed by administrators.
      * @path /loyalty_programs/{loyaltyProgramId}
-     * @allow (get) Any user, even unauthenticated, reading a loyalty program.
-     * @allow (create) An administrator creating a new loyalty program.
-     * @deny (update) A regular, non-admin user attempting to change the points-per-dollar value.
-     * @principle Implements public-read access for global data while restricting mutations to privileged roles (Admins).
+     * @allow (get, list, create, update, delete) An admin can perform any operation.
+     * @deny (get) A regular user CANNOT read the loyalty program configuration.
+     * @principle Enforces strict admin-only access for system configuration data.
      */
     match /loyalty_programs/{loyaltyProgramId} {
-      allow get: if true;
-      allow list: if true;
+      allow get, list: if isAdmin();
       allow create: if isAdmin();
       allow update: if isAdmin() && isExistingDoc();
       allow delete: if isAdmin() && isExistingDoc();
     }
 
     /**
-     * @description Manages sensitive Toolkit API credentials. Access is strictly limited to administrators for all operations to prevent exposure of secret keys.
-     * @path /toolkit_apis/{toolkitApiId}
-     * @allow (get) An authenticated admin user reading an API key configuration.
-     * @deny (get) Any non-admin user attempting to read an API key, even if they are signed in.
-     * @deny (list) Any non-admin user attempting to list all API configurations.
-     * @principle Enforces strict role-based access control (RBAC) for highly sensitive data. Defaults to the most secure posture (deny all).
-     */
-    match /toolkit_apis/{toolkitApiId} {
-      allow get: if isAdmin();
-      allow list: if isAdmin();
-      allow create: if isAdmin();
-      allow update: if isAdmin() && isExistingDoc();
-      allow delete: if isAdmin() && isExistingDoc();
-    }
-
-    /**
-     * @description Manages which users have administrative privileges. Only existing admins can read, grant, or revoke admin status for other users.
+     * @description
+     * A private collection used to grant admin roles. The existence of a document
+     * with a user's UID as the ID means they are an admin. This collection MUST NOT
+     * be accessible to any client.
      * @path /roles_admin/{userId}
-     * @allow (create) An admin user adding a document for 'user456' to make them an admin.
-     * @deny (delete) A regular user attempting to remove an admin's role document.
-     * @deny (get) A regular user trying to check if another user is an admin.
-     * @principle Secures the role management system itself, ensuring that only privileged users can modify permissions.
+     * @allow (any) No client operation is ever permitted on this collection.
+     * @deny (any) All client requests (read, write) are rejected.
+     * @principle Secures the role-management system by making it completely inaccessible from clients.
      */
     match /roles_admin/{userId} {
-      allow get: if isAdmin();
-      allow list: if isAdmin();
-      allow create: if isAdmin();
-      allow update: if isAdmin() && isExistingDoc();
-      allow delete: if isAdmin() && isExistingDoc();
+      allow get: if false;
+      allow list: if false;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
   }
 }

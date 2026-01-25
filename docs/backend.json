@@ -8,11 +8,11 @@
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the user entity."
+          "description": "Unique identifier for the User entity."
         },
         "googleId": {
           "type": "string",
-          "description": "The unique identifier provided by Google upon authentication."
+          "description": "User's Google ID, linked from Firebase Authentication."
         },
         "email": {
           "type": "string",
@@ -25,12 +25,11 @@
         },
         "role": {
           "type": "string",
-          "description": "User's role within the application (e.g., admin, customer).",
-          "format": "string"
+          "description": "User's role within the application (e.g., 'admin', 'customer')."
         },
         "loyaltyPoints": {
           "type": "number",
-          "description": "The amount of loyalty points the user has."
+          "description": "User's current loyalty points balance."
         }
       },
       "required": [
@@ -49,7 +48,7 @@
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the order."
+          "description": "Unique identifier for the Order entity."
         },
         "userId": {
           "type": "string",
@@ -57,7 +56,7 @@
         },
         "orderDate": {
           "type": "string",
-          "description": "Date when the order was placed.",
+          "description": "Date and time when the order was placed.",
           "format": "date-time"
         },
         "totalAmount": {
@@ -66,7 +65,14 @@
         },
         "status": {
           "type": "string",
-          "description": "Current status of the order (e.g., pending, processing, shipped, delivered)."
+          "description": "Current status of the order (e.g., 'pending', 'processing', 'shipped', 'delivered')."
+        },
+        "items": {
+          "type": "array",
+          "description": "List of order items",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "required": [
@@ -85,7 +91,7 @@
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the transaction."
+          "description": "Unique identifier for the Transaction entity."
         },
         "userId": {
           "type": "string",
@@ -97,7 +103,7 @@
         },
         "transactionDate": {
           "type": "string",
-          "description": "Date of the transaction.",
+          "description": "Date and time of the transaction.",
           "format": "date-time"
         },
         "amount": {
@@ -106,7 +112,7 @@
         },
         "type": {
           "type": "string",
-          "description": "Type of transaction (e.g., purchase, refund, loyalty points earned)."
+          "description": "Type of transaction (e.g., 'purchase', 'refund', 'loyalty_points')."
         }
       },
       "required": [
@@ -126,72 +132,41 @@
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the support ticket."
+          "description": "Unique identifier for the SupportTicket entity."
         },
         "userId": {
           "type": "string",
           "description": "Reference to User. (Relationship: User 1:N SupportTicket)"
         },
-        "dateOpened": {
+        "creationDate": {
           "type": "string",
-          "description": "Date when the ticket was opened.",
+          "description": "Date and time when the ticket was created.",
           "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "description": "Current status of the ticket (e.g., 'open', 'pending', 'resolved', 'escalated')."
         },
         "subject": {
           "type": "string",
           "description": "Subject of the support ticket."
         },
-        "description": {
+        "message": {
           "type": "string",
-          "description": "Detailed description of the issue."
+          "description": "Content of the support ticket."
         },
-        "status": {
+        "adminId": {
           "type": "string",
-          "description": "Current status of the ticket (e.g., open, pending, resolved)."
+          "description": "Reference to User (Admin) who is handling the ticket. (Relationship: User 1:N SupportTicket)"
         }
       },
       "required": [
         "id",
         "userId",
-        "dateOpened",
+        "creationDate",
+        "status",
         "subject",
-        "description",
-        "status"
-      ]
-    },
-    "LoyaltyProgram": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "LoyaltyProgram",
-      "type": "object",
-      "description": "Represents the loyalty program and its rules.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the loyalty program."
-        },
-        "name": {
-          "type": "string",
-          "description": "Name of the loyalty program."
-        },
-        "description": {
-          "type": "string",
-          "description": "Description of the loyalty program."
-        },
-        "pointsPerDollar": {
-          "type": "number",
-          "description": "Number of loyalty points earned per dollar spent."
-        },
-        "discountPerPoint": {
-          "type": "number",
-          "description": "Discount value per loyalty point when redeemed."
-        }
-      },
-      "required": [
-        "id",
-        "name",
-        "description",
-        "pointsPerDollar",
-        "discountPerPoint"
+        "message"
       ]
     },
     "Notification": {
@@ -202,26 +177,26 @@
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the notification."
+          "description": "Unique identifier for the Notification entity."
         },
         "userId": {
           "type": "string",
           "description": "Reference to User. (Relationship: User 1:N Notification)"
         },
+        "notificationDate": {
+          "type": "string",
+          "description": "Date and time when the notification was sent.",
+          "format": "date-time"
+        },
         "type": {
           "type": "string",
-          "description": "Type of notification (e.g., order update, offer, loyalty reward)."
+          "description": "Type of notification (e.g., 'order_update', 'offer', 'loyalty_reward')."
         },
         "message": {
           "type": "string",
           "description": "Content of the notification."
         },
-        "dateSent": {
-          "type": "string",
-          "description": "Date when the notification was sent.",
-          "format": "date-time"
-        },
-        "isRead": {
+        "read": {
           "type": "boolean",
           "description": "Indicates whether the notification has been read by the user."
         }
@@ -229,46 +204,101 @@
       "required": [
         "id",
         "userId",
+        "notificationDate",
         "type",
         "message",
-        "dateSent",
-        "isRead"
+        "read"
       ]
     },
-    "ToolkitApi": {
+    "LoyaltyProgram": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "ToolkitApi",
+      "title": "LoyaltyProgram",
       "type": "object",
-      "description": "Represents API keys and settings required to interact with various toolkits like AI chatbot or recommendation engines.",
+      "description": "Represents the loyalty program settings.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the Toolkit API configuration."
+          "description": "Unique identifier for the LoyaltyProgram entity."
         },
-        "apiName": {
-          "type": "string",
-          "description": "Name of the API (e.g., 'AI Chatbot API', 'Recommendation API')"
+        "pointsPerDollar": {
+          "type": "number",
+          "description": "Number of loyalty points earned per dollar spent."
         },
-        "apiKey": {
-          "type": "string",
-          "description": "API key required to authenticate with the toolkit's API."
+        "redemptionRate": {
+          "type": "number",
+          "description": "Value of each loyalty point when redeemed (e.g., 0.01 for 1 cent per point)."
         },
-        "apiUrl": {
+        "expiryPeriod": {
           "type": "string",
-          "description": "Base URL for the toolkit's API endpoint.",
-          "format": "uri"
-        },
-        "settings": {
-          "type": "string",
-          "description": "JSON string containing specific settings for the toolkit (e.g., model configurations for AI Chatbot)",
-          "format": "string"
+          "description": "Duration after which loyalty points expire (e.g., '1 year')."
         }
       },
       "required": [
         "id",
-        "apiName",
-        "apiKey",
-        "apiUrl"
+        "pointsPerDollar",
+        "redemptionRate",
+        "expiryPeriod"
+      ]
+    },
+    "ProductRecommendation": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ProductRecommendation",
+      "type": "object",
+      "description": "Represents a product recommendation for a user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the ProductRecommendation entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N ProductRecommendation)"
+        },
+        "productId": {
+          "type": "string",
+          "description": "Identifier of the recommended product.  Note:  Assuming Product data is managed elsewhere or via an external service.  If the product catalog were local, we'd need a Product entity."
+        },
+        "recommendationDate": {
+          "type": "string",
+          "description": "Date when the recommendation was generated.",
+          "format": "date-time"
+        },
+        "reason": {
+          "type": "string",
+          "description": "Reason for the recommendation (e.g., 'past_purchase', 'frequently_bought_together')."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "productId",
+        "recommendationDate",
+        "reason"
+      ]
+    },
+    "FAQ": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "FAQ",
+      "type": "object",
+      "description": "Represents a frequently asked question and its automated response.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the FAQ entry."
+        },
+        "question": {
+          "type": "string",
+          "description": "The question asked by the user."
+        },
+        "answer": {
+          "type": "string",
+          "description": "The automated response to the question."
+        }
+      },
+      "required": [
+        "id",
+        "question",
+        "answer"
       ]
     }
   },
@@ -287,11 +317,11 @@
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "Stores user profiles. Uses path-based ownership for private user data.",
+          "description": "Stores user profiles. Uses path-based ownership for private data.",
           "params": [
             {
               "name": "userId",
-              "description": "Unique identifier for the user."
+              "description": "The unique ID of the user."
             }
           ]
         }
@@ -303,15 +333,15 @@
           "schema": {
             "$ref": "#/backend/entities/Order"
           },
-          "description": "Stores orders associated with a specific user. Uses path-based ownership.",
+          "description": "Stores orders associated with a specific user. Uses path-based ownership. Includes denormalized 'userId' for authorization independence.",
           "params": [
             {
               "name": "userId",
-              "description": "Unique identifier for the user."
+              "description": "The unique ID of the user."
             },
             {
               "name": "orderId",
-              "description": "Unique identifier for the order."
+              "description": "The unique ID of the order."
             }
           ]
         }
@@ -323,35 +353,31 @@
           "schema": {
             "$ref": "#/backend/entities/Transaction"
           },
-          "description": "Stores transaction data for a specific user and is linked to a specific order. Uses path-based ownership.",
+          "description": "Stores transactions associated with a specific user. Uses path-based ownership. Includes denormalized 'userId' for authorization independence.",
           "params": [
             {
               "name": "userId",
-              "description": "Unique identifier for the user."
+              "description": "The unique ID of the user."
             },
             {
               "name": "transactionId",
-              "description": "Unique identifier for the transaction."
+              "description": "The unique ID of the transaction."
             }
           ]
         }
       },
       {
-        "path": "/users/{userId}/support_tickets/{supportTicketId}",
+        "path": "/support_tickets/{ticketId}",
         "definition": {
           "entityName": "SupportTicket",
           "schema": {
             "$ref": "#/backend/entities/SupportTicket"
           },
-          "description": "Stores support tickets created by a specific user. Uses path-based ownership.",
+          "description": "Stores customer support tickets. Admins can access all tickets. Includes 'userId' for relating to the customer and 'adminId' for the assigned admin.",
           "params": [
             {
-              "name": "userId",
-              "description": "Unique identifier for the user."
-            },
-            {
-              "name": "supportTicketId",
-              "description": "Unique identifier for the support ticket."
+              "name": "ticketId",
+              "description": "The unique ID of the support ticket."
             }
           ]
         }
@@ -363,15 +389,15 @@
           "schema": {
             "$ref": "#/backend/entities/Notification"
           },
-          "description": "Stores notifications for a specific user. Uses path-based ownership.",
+          "description": "Stores notifications for a specific user. Uses path-based ownership. Includes denormalized 'userId' for authorization independence.",
           "params": [
             {
               "name": "userId",
-              "description": "Unique identifier for the user."
+              "description": "The unique ID of the user."
             },
             {
               "name": "notificationId",
-              "description": "Unique identifier for the notification."
+              "description": "The unique ID of the notification."
             }
           ]
         }
@@ -383,27 +409,47 @@
           "schema": {
             "$ref": "#/backend/entities/LoyaltyProgram"
           },
-          "description": "Stores loyalty program details.",
+          "description": "Stores loyalty program configurations.  Accessed by admins.",
           "params": [
             {
               "name": "loyaltyProgramId",
-              "description": "Unique identifier for the loyalty program."
+              "description": "The unique ID of the loyalty program configuration."
             }
           ]
         }
       },
       {
-        "path": "/toolkit_apis/{toolkitApiId}",
+        "path": "/users/{userId}/product_recommendations/{recommendationId}",
         "definition": {
-          "entityName": "ToolkitApi",
+          "entityName": "ProductRecommendation",
           "schema": {
-            "$ref": "#/backend/entities/ToolkitApi"
+            "$ref": "#/backend/entities/ProductRecommendation"
           },
-          "description": "Stores API keys and settings for interacting with external toolkits.",
+          "description": "Stores product recommendations for a specific user. Uses path-based ownership. Includes denormalized 'userId' for authorization independence.",
           "params": [
             {
-              "name": "toolkitApiId",
-              "description": "Unique identifier for the Toolkit API configuration."
+              "name": "userId",
+              "description": "The unique ID of the user."
+            },
+            {
+              "name": "recommendationId",
+              "description": "The unique ID of the product recommendation."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/faqs/{faqId}",
+        "definition": {
+          "entityName": "FAQ",
+          "schema": {
+            "$ref": "#/backend/entities/FAQ"
+          },
+          "description": "Stores frequently asked questions and their answers. Publicly accessible.",
+          "params": [
+            {
+              "name": "faqId",
+              "description": "The unique ID of the FAQ entry."
             }
           ]
         }
@@ -411,20 +457,20 @@
       {
         "path": "/roles_admin/{userId}",
         "definition": {
-          "entityName": "admin_role",
+          "entityName": "role",
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "Documents in this collection signify that the user is an admin. Existence over content is enforced.",
+          "description": "Collection to store admin users. Existence of a document indicates admin role.",
           "params": [
             {
               "name": "userId",
-              "description": "The unique id of the user."
+              "description": "The unique ID of the admin user."
             }
           ]
         }
       }
     ],
-    "reasoning": "The Firestore data structure is designed to support the AI-driven retail application with a focus on customer retention and engagement. It incorporates key principles like Authorization Independence via denormalization and Structural Segregation. The structure leverages path-based ownership for user-related data and membership maps where collaboration is needed. The authentication rectification involves storing roles in the database and leveraging `request.auth.uid` for authorization. To enable the ToolkitApi it is available at a global level."
+    "reasoning": "This Firestore structure is designed to support a retail application with AI-powered customer support, personalized recommendations, and loyalty management. It prioritizes security, scalability, and debuggability following the principles of Authorization Independence, Structural Segregation, and Access Modeling.  Key design decisions include:\n\n1.  **Authorization Independence:** The structure avoids chained `get()` calls in security rules. User-owned data is placed in hierarchical paths (`/users/{userId}/orders/{orderId}`) to implicitly enforce ownership without needing to read parent documents.  Collaborative data (if any in future features) would utilize membership maps denormalized into subcollections.  Admin roles are managed via document existence in a dedicated collection.\n\n2.  **Structural Segregation:**  Data with different security requirements is segregated into separate collections (e.g., `/users/{userId}/notifications` for private user notifications versus `/faqs` for public FAQs).  This ensures each collection has a clear and consistent security posture.\n\n3.  **Access Modeling:**  Private user data follows path-based ownership (`/users/{userId}/...`).  Admin access is controlled through the `/roles_admin/{userId}` collection, leveraging existence checks.  The frequently asked questions will be public.\n\n4.  **AI and Support Tickets:**  Support tickets are created in `/support_tickets/{ticketId}`. The tickets contain the `userId` of the customer who created the ticket. Admins can access and manage all support tickets. To enhance the AI capabilities, the frequently asked questions will be stored in `/faqs/{faqId}`. The AI will respond to the customers using the most appropriate answers based on the questions the customer asked. If the customer's question goes beyond the most frequently asked question a ticket will be created.\n\n5.  **QAPs (Query Authorization Patterns):** The structure supports secure `list` operations.  Path-based ownership enables listing operations restricted to a specific user's data (e.g., listing all orders for a user). Segregation of public FAQs enables unrestricted listing.\n\n6. **Denormalization:** The `userId` is duplicated in collections like `orders`, `transactions`, `supportTickets`, `notifications`, and `productRecommendations` to avoid `get()` calls when querying for entities related to a specific user."
   }
 }
