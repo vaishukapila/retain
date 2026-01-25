@@ -1,0 +1,227 @@
+/**
+ * # Firestore Security Rules for Retain.ai
+ *
+ * ## Core Philosophy
+ * This ruleset enforces a strict user-ownership model, where all user-generated
+ * data is stored in subcollections under that user's unique ID. This ensures
+ * that by default, users can only access their own information. An exception is
+ * made for users with the 'admin' role, who are granted elevated privileges for
+ * specific administrative tasks, such as managing support tickets and global
+ * configurations.
+ *
+ * ## Data Structure
+ * The data is organized hierarchically to simplify security. The top-level
+ * `/users/{userId}` path is the root for all data associated with a specific user,
+ * including their orders, transactions, and support tickets. Global, non-user-specific
+ * data, such as loyalty program configurations, is stored in a separate top-level
+ * collection (`/loyaltyPrograms`).
+ *
+ * ## Key Security Decisions
+ * - **Strict Ownership:** All personal data is private. A user cannot access another
+ *   user's orders, notifications, or other private subcollections.
+ * - **No User Enumeration:** Listing documents in the top-level `/users` collection
+ *   is disallowed to prevent malicious actors from discovering the list of all users.
+ * - **Admin Privileges:** Users with `role: 'admin'` in their user document can read
+ *   and write to all support tickets and manage global settings like loyalty programs.
+ *   This access is granted via a helper function that performs a document read to
+ *   check the user's role.
+ * - **Self-Service Profile Creation:** A new user is permitted to create their own
+ *   user document, but only if the document ID matches their authentication UID.
+ * - **Read-Only Global Config:** The `/loyaltyPrograms` collection is readable by any
+ *   authenticated user but can only be modified by admins.
+ *
+ * ## Denormalization for Authorization
+ * These rules rely on two key denormalization patterns for efficient and secure
+ * authorization:
+ * - **Path-Based Ownership:** Storing user data under `/users/{userId}` allows for
+ *   simple and fast ownership checks using the `userId` from the path without needing
+ *   to read the document content.
+ * - **Role-Based Access:** A user's role is stored directly on their `/users/{userId}`
+ *   document (e.g., `role: 'admin'`). This allows rules to grant admin privileges
+ *   by performing a single `get()` operation on the requesting user's own profile,
+ *   which is a secure and relatively performant way to manage roles.
+ *
+ * ## Note on 'auth/configuration-not-found' Error
+ * The 'auth/configuration-not-found' error is a client-side issue, typically caused
+ * by an incorrect or missing Firebase configuration object during the Firebase app
+ * initialization in the frontend code. These security rules will function correctly
+ * once the client-side application is properly configured to communicate with your
+ * Firebase project.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =====================================================================
+    // Helper Functions
+    // =====================================================================
+
+    /**
+     * Checks if a user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Checks if the currently authenticated user's UID matches the provided userId.
+     * This is the primary function for enforcing document ownership.
+     * @param userId The UID of the document owner.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    /**
+     * Checks if the document exists and the requester is the owner.
+     * Used for safe update and delete operations.
+     * @param userId The UID of the document owner.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * Checks if the requesting user has the 'admin' role.
+     * This performs a document read, which has performance and cost implications.
+     * It should only be used where admin override is necessary.
+     */
+    function isAdmin() {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    /**
+     * Validates that the incoming document's 'userId' field matches the
+     * userId from the path during document creation.
+     * @param userId The UID from the document path.
+     */
+    function hasCorrectUserIdOnCreate(userId) {
+      return request.resource.data.userId == userId;
+    }
+    
+    /**
+     * Validates that the 'userId' field is not being changed during an update.
+     */
+    function isUserIdImmutable() {
+      return request.resource.data.userId == resource.data.userId;
+    }
+    
+    // =====================================================================
+    // Collection Rules
+    // =====================================================================
+
+    /**
+     * @description Manages user profile documents. Users can create their own profile,
+     *              and can only read or write their own document. Listing users is disallowed.
+     * @path        /users/{userId}
+     * @allow       (create) A new user creating their own document: auth.uid == userId.
+     * @deny        (get) A user trying to read another user's profile.
+     * @principle   Enforces self-service profile management and prevents user enumeration.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Secures a user's order history. Only the owner can manage their orders.
+     * @path        /users/{userId}/orders/{orderId}
+     * @allow       (create) A user creating a new order for themselves.
+     * @deny        (get) A user trying to read another user's order.
+     * @principle   Restricts access to a user's own data tree (Ownership).
+     */
+    match /users/{userId}/orders/{orderId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && hasCorrectUserIdOnCreate(userId);
+      allow update: if isExistingOwner(userId) && isUserIdImmutable();
+      allow delete: if isExistingOwner(userId);
+    }
+    
+    /**
+     * @description Secures transactions related to a specific order.
+     * @path        /users/{userId}/orders/{orderId}/transactions/{transactionId}
+     * @allow       (list) A user listing transactions for their own order.
+     * @deny        (create) A user trying to create a transaction for another user's order.
+     * @principle   Restricts access to a user's own data tree (Ownership).
+     */
+    match /users/{userId}/orders/{orderId}/transactions/{transactionId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && hasCorrectUserIdOnCreate(userId);
+      allow update: if isExistingOwner(userId) && isUserIdImmutable();
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Secures general user transactions not tied to a specific order.
+     * @path        /users/{userId}/transactions/{transactionId}
+     * @allow       (get) A user reading one of their own transactions.
+     * @deny        (list) A user trying to list another user's transactions.
+     * @principle   Restricts access to a user's own data tree (Ownership).
+     */
+    match /users/{userId}/transactions/{transactionId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && hasCorrectUserIdOnCreate(userId);
+      allow update: if isExistingOwner(userId) && isUserIdImmutable();
+      allow delete: if isExistingOwner(userId);
+    }
+    
+    /**
+     * @description Secures customer support tickets. The user who created the ticket
+     *              can read and write it. Admins have full access to all tickets.
+     * @path        /users/{userId}/supportTickets/{supportTicketId}
+     * @allow       (get) An admin reading any user's support ticket.
+     * @deny        (update) A regular user trying to modify another user's support ticket.
+     * @principle   Combines document ownership with role-based access for administrative tasks.
+     */
+    match /users/{userId}/supportTickets/{supportTicketId} {
+      allow get, list: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && hasCorrectUserIdOnCreate(userId);
+      allow update: if (isExistingOwner(userId) || isAdmin()) && isUserIdImmutable();
+      allow delete: if isExistingOwner(userId) || isAdmin();
+    }
+    
+    /**
+     * @description Secures user notifications. Only the owner can access their notifications.
+     * @path        /users/{userId}/notifications/{notificationId}
+     * @allow       (update) A user marking their own notification as read.
+     * @deny        (get) A user attempting to read another user's notifications.
+     * @principle   Restricts access to a user's own data tree (Ownership).
+     */
+    match /users/{userId}/notifications/{notificationId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && hasCorrectUserIdOnCreate(userId);
+      allow update: if isExistingOwner(userId) && isUserIdImmutable();
+      allow delete: if isExistingOwner(userId);
+    }
+    
+    /**
+     * @description Secures user-specific product recommendations.
+     * @path        /users/{userId}/productRecommendations/{productRecommendationId}
+     * @allow       (list) A user listing their own product recommendations.
+     * @deny        (get) A user trying to access another user's recommendations.
+     * @principle   Restricts access to a user's own data tree (Ownership).
+     */
+    match /users/{userId}/productRecommendations/{productRecommendationId} {
+      allow get, list: if isOwner(userId);
+      allow create: if false; // Assuming recommendations are created by a backend service
+      allow update: if false;
+      allow delete: if isOwner(userId); // Allow user to dismiss recommendations
+    }
+
+    /**
+     * @description Manages global loyalty program configurations. Readable by any authenticated
+     *              user, but only writable by administrators.
+     * @path        /loyaltyPrograms/{loyaltyProgramId}
+     * @allow       (list) Any authenticated user listing the loyalty programs.
+     * @deny        (create) A non-admin user trying to create a new loyalty program.
+     * @principle   Provides public read access for configuration data with role-based write restrictions.
+     */
+    match /loyaltyPrograms/{loyaltyProgramId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+  }
+}

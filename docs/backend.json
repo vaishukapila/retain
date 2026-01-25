@@ -1,0 +1,437 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the Retain.ai application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user."
+        },
+        "googleId": {
+          "type": "string",
+          "description": "The user's Google ID, obtained from Firebase Authentication."
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address.",
+          "format": "email"
+        },
+        "role": {
+          "type": "string",
+          "description": "The user's role (e.g., 'admin', 'customer')."
+        },
+        "loyaltyPoints": {
+          "type": "number",
+          "description": "The number of loyalty points the user has accumulated.",
+          "format": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the user account was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "googleId",
+        "email",
+        "role",
+        "loyaltyPoints",
+        "createdAt"
+      ]
+    },
+    "Order": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Order",
+      "type": "object",
+      "description": "Represents an order placed by a customer.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the order."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who placed the order. (Relationship: User 1:N Order)"
+        },
+        "orderDate": {
+          "type": "string",
+          "description": "Date the order was placed.",
+          "format": "date-time"
+        },
+        "totalAmount": {
+          "type": "number",
+          "description": "Total amount of the order."
+        },
+        "status": {
+          "type": "string",
+          "description": "Current status of the order (e.g., 'pending', 'shipped', 'delivered')."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "orderDate",
+        "totalAmount",
+        "status"
+      ]
+    },
+    "Transaction": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Transaction",
+      "type": "object",
+      "description": "Represents a financial transaction, such as a purchase or loyalty point redemption.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the transaction."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User associated with the transaction. (Relationship: User 1:N Transaction)"
+        },
+        "transactionDate": {
+          "type": "string",
+          "description": "Date and time of the transaction.",
+          "format": "date-time"
+        },
+        "amount": {
+          "type": "number",
+          "description": "Amount of the transaction."
+        },
+        "type": {
+          "type": "string",
+          "description": "Type of transaction (e.g., 'purchase', 'loyalty_redemption')."
+        },
+        "orderId": {
+          "type": "string",
+          "description": "Reference to the Order associated with the transaction. (Relationship: Order 1:N Transaction).  May be null if transaction is not related to an order."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "transactionDate",
+        "amount",
+        "type"
+      ]
+    },
+    "SupportTicket": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SupportTicket",
+      "type": "object",
+      "description": "Represents a customer support ticket.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the support ticket."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who created the ticket. (Relationship: User 1:N SupportTicket)"
+        },
+        "createdDate": {
+          "type": "string",
+          "description": "Date and time the ticket was created.",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "description": "Current status of the ticket (e.g., 'open', 'pending', 'resolved')."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the support issue."
+        },
+        "adminId": {
+          "type": "string",
+          "description": "Reference to the Admin user assigned to the ticket. (Relationship: User 1:N SupportTicket). May be null if unassigned."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "createdDate",
+        "status",
+        "description"
+      ]
+    },
+    "LoyaltyProgram": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "LoyaltyProgram",
+      "type": "object",
+      "description": "Represents the loyalty point accrual and redemption rules.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the loyalty program configuration."
+        },
+        "pointsPerDollar": {
+          "type": "number",
+          "description": "Number of loyalty points earned per dollar spent."
+        },
+        "redemptionRate": {
+          "type": "number",
+          "description": "The dollar value of each loyalty point when redeemed."
+        },
+        "minimumPointsToRedeem": {
+          "type": "number",
+          "description": "The minimum amount of points required for a redemption."
+        }
+      },
+      "required": [
+        "id",
+        "pointsPerDollar",
+        "redemptionRate",
+        "minimumPointsToRedeem"
+      ]
+    },
+    "Notification": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Notification",
+      "type": "object",
+      "description": "Represents a notification sent to a user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the notification."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who received the notification. (Relationship: User 1:N Notification)"
+        },
+        "type": {
+          "type": "string",
+          "description": "Type of notification (e.g., 'order_update', 'offer', 'loyalty_reward')."
+        },
+        "message": {
+          "type": "string",
+          "description": "The notification message."
+        },
+        "sentDate": {
+          "type": "string",
+          "description": "Date and time the notification was sent.",
+          "format": "date-time"
+        },
+        "isRead": {
+          "type": "boolean",
+          "description": "Indicates whether the notification has been read by the user."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "type",
+        "message",
+        "sentDate",
+        "isRead"
+      ]
+    },
+    "ProductRecommendation": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ProductRecommendation",
+      "type": "object",
+      "description": "Represents a product recommendation for a user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the product recommendation."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who is receiving the product recommendation. (Relationship: User 1:N ProductRecommendation)"
+        },
+        "productId": {
+          "type": "string",
+          "description": "The ID of the product being recommended.  In a real system, this would likely be a reference to a separate 'Product' entity, but we omit that for brevity."
+        },
+        "reason": {
+          "type": "string",
+          "description": "The reason for the product recommendation (e.g., 'past_purchase', 'frequently_bought_together')."
+        },
+        "recommendationDate": {
+          "type": "string",
+          "description": "Date and time the product recommendation was generated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "productId",
+        "reason",
+        "recommendationDate"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profiles. Path-based ownership for data privacy and security.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/orders/{orderId}",
+        "definition": {
+          "entityName": "Order",
+          "schema": {
+            "$ref": "#/backend/entities/Order"
+          },
+          "description": "Stores orders placed by a user. Path-based ownership.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user who placed the order."
+            },
+            {
+              "name": "orderId",
+              "description": "The unique identifier for the order."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/orders/{orderId}/transactions/{transactionId}",
+        "definition": {
+          "entityName": "Transaction",
+          "schema": {
+            "$ref": "#/backend/entities/Transaction"
+          },
+          "description": "Stores transactions related to an order. Path-based ownership.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user associated with the transaction."
+            },
+            {
+              "name": "orderId",
+              "description": "The unique identifier for the order related to the transaction."
+            },
+            {
+              "name": "transactionId",
+              "description": "The unique identifier for the transaction."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/transactions/{transactionId}",
+        "definition": {
+          "entityName": "Transaction",
+          "schema": {
+            "$ref": "#/backend/entities/Transaction"
+          },
+          "description": "Stores transactions made by a user. Path-based ownership.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user associated with the transaction."
+            },
+            {
+              "name": "transactionId",
+              "description": "The unique identifier for the transaction."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/supportTickets/{supportTicketId}",
+        "definition": {
+          "entityName": "SupportTicket",
+          "schema": {
+            "$ref": "#/backend/entities/SupportTicket"
+          },
+          "description": "Stores support tickets raised by a user. Path-based ownership.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user who raised the ticket."
+            },
+            {
+              "name": "supportTicketId",
+              "description": "The unique identifier for the support ticket."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/loyaltyPrograms/{loyaltyProgramId}",
+        "definition": {
+          "entityName": "LoyaltyProgram",
+          "schema": {
+            "$ref": "#/backend/entities/LoyaltyProgram"
+          },
+          "description": "Stores loyalty program configurations.  This is a global configuration; no user-specific data here.",
+          "params": [
+            {
+              "name": "loyaltyProgramId",
+              "description": "The unique identifier for the loyalty program configuration."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/notifications/{notificationId}",
+        "definition": {
+          "entityName": "Notification",
+          "schema": {
+            "$ref": "#/backend/entities/Notification"
+          },
+          "description": "Stores notifications sent to a user. Path-based ownership.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user who received the notification."
+            },
+            {
+              "name": "notificationId",
+              "description": "The unique identifier for the notification."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/productRecommendations/{productRecommendationId}",
+        "definition": {
+          "entityName": "ProductRecommendation",
+          "schema": {
+            "$ref": "#/backend/entities/ProductRecommendation"
+          },
+          "description": "Stores product recommendations for a user. Path-based ownership.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user who is receiving the product recommendation."
+            },
+            {
+              "name": "productRecommendationId",
+              "description": "The unique identifier for the product recommendation."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to adhere to the principles of Authorization Independence, Structural Segregation, Access Modeling, and Data Clarity, ensuring secure and scalable data management for the Retain.ai application.  \n\n**Authorization Independence:** We primarily achieve this through path-based ownership and denormalization where necessary. For example, user-owned data like `orders`, `transactions`, `supportTickets`, `notifications`, and `productRecommendations` are stored under the `/users/{userId}` path. This inherently ties the data to the user's ID, making security rules straightforward. Membership maps are not required given the 1:N nature of the data with the User. \n\n**Structural Segregation:**  Each collection is designed to hold documents with a homogeneous security posture. User profiles are stored in `/users/{userId}`, Orders are stored in `/users/{userId}/orders/{orderId}` and so on, with each subcollection exhibiting the access constraints related to a specific user. This simplifies security rules and eliminates the need for complex logic within the rules themselves.\n\n**Access Modeling:** The design incorporates path-based ownership for private user data and leans on the hierarchical approach for nested data relationships (e.g. `users/{userId}/orders/{orderId}/transactions/{transactionId}`).  Admins do not have a specific role collection, and instead the `users` collection contains a `role` field that defines if a user is an admin or a customer. This role field can be used in security rules to authorize administrative tasks.\n\n**QAPs Support:** The segregation of user-specific data into subcollections of `/users/{userId}` ensures that listing operations are naturally scoped to a specific user. Listing orders, transactions, notifications, etc. is limited to the current user, supporting secure listing.  Moreover, the enforcement of user roles directly within the `users` collection allows for secure admin-level listing operations (e.g. admin listing all support tickets).\n\n**Mitigation of Original Error:** The original error `FirebaseError: Firebase: Error (auth/configuration-not-found)` indicates that the Firebase Authentication configuration is not properly set up. While Firestore structure does not directly solve this authentication error, ensuring that Firebase Authentication is correctly initialized with the appropriate API keys and project settings is crucial to fixing this. The proposed structure ensures that the backend is able to authorize successfully, which will be dependent on the frontend using a correctly initialized firebase configuration."
+  }
+}
