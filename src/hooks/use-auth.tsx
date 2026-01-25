@@ -63,7 +63,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (error.code) {
       switch (error.code) {
         case 'auth/invalid-credential':
-          description = 'Invalid email or password. Please check your credentials or sign up if you are a new user.';
+          description = 'Invalid email or password. If you are a new user, please sign up.';
           break;
         case 'auth/email-already-in-use':
           description = 'This email is already registered.';
@@ -168,25 +168,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
 
   const signInWithGoogle = async () => {
-    setLoading(true);
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       await createFirestoreUser(result.user);
     } catch (error) {
       handleError(error);
-    } finally {
-      // Don't setLoading(false) here, onAuthStateChanged will handle it
     }
   };
 
   const signInWithEmail = async (email: string, password: string) => {
-    setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
       handleError(error);
-      setLoading(false); // only set loading false on error
     }
   };
 
@@ -195,14 +190,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     email: string,
     password: string
   ) => {
-    setLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(userCredential.user, { displayName });
       await createFirestoreUser(userCredential.user, displayName);
     } catch (error) {
       handleError(error);
-      setLoading(false); // only set loading false on error
     }
   };
 
