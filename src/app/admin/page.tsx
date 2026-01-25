@@ -1,18 +1,45 @@
+'use client';
+
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
-import { Users, ShoppingBag, LifeBuoy, BarChart } from "lucide-react";
-import { mockUsers, mockOrders, mockSupportTickets } from "@/lib/mock-data";
+import { Users, ShoppingBag, LifeBuoy, BarChart, Loader2 } from "lucide-react";
+import { mockOrders } from "@/lib/mock-data";
+import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
+import { collection, query, where } from "firebase/firestore";
+import type { SupportTicket, User } from "@/lib/types";
 
 export default function AdminDashboardPage() {
-  const totalCustomers = mockUsers.filter(u => u.role === 'customer').length;
+  const firestore = useFirestore();
+
+  const customersQuery = useMemoFirebase(
+    () =>
+      firestore
+        ? query(collection(firestore, 'users'), where('role', '==', 'customer'))
+        : null,
+    [firestore]
+  );
+  const { data: customers, isLoading: isLoadingCustomers } = useCollection<User>(customersQuery);
+
+  const openTicketsQuery = useMemoFirebase(
+    () =>
+      firestore
+        ? query(collection(firestore, 'support_tickets'), where('status', '==', 'Open'))
+        : null,
+    [firestore]
+  );
+  const { data: openTicketsData, isLoading: isLoadingTickets } = useCollection<SupportTicket>(openTicketsQuery);
+
+  // For now, we continue to use mock data for orders as they are nested under users.
+  // This would require a larger refactor to query all orders efficiently.
   const totalOrders = mockOrders.length;
-  const openTickets = mockSupportTickets.filter(t => t.status === 'Open').length;
   const totalRevenue = mockOrders.reduce((acc, order) => order.status !== 'Cancelled' ? acc + order.total : acc, 0);
+
+  const isLoading = isLoadingCustomers || isLoadingTickets;
 
   const stats = [
     { title: "Total Revenue", value: `$${totalRevenue.toFixed(2)}`, icon: BarChart, description: "All-time revenue" },
-    { title: "Total Customers", value: totalCustomers, icon: Users, description: "Number of registered customers" },
+    { title: "Total Customers", value: customers?.length ?? 0, icon: Users, description: "Number of registered customers" },
     { title: "Total Orders", value: totalOrders, icon: ShoppingBag, description: "All processed orders" },
-    { title: "Open Support Tickets", value: openTickets, icon: LifeBuoy, description: "Tickets needing attention" },
+    { title: "Open Support Tickets", value: openTicketsData?.length ?? 0, icon: LifeBuoy, description: "Tickets needing attention" },
   ];
 
   return (
@@ -29,7 +56,13 @@ export default function AdminDashboardPage() {
               <stat.icon className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
+              <div className="text-2xl font-bold">
+                {isLoading && (stat.title === "Total Customers" || stat.title === "Open Support Tickets") ? (
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                ) : (
+                  stat.value
+                )}
+              </div>
               <p className="text-xs text-muted-foreground">{stat.description}</p>
             </CardContent>
           </Card>
