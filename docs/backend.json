@@ -30,6 +30,13 @@
         "loyaltyPoints": {
           "type": "number",
           "description": "User's current loyalty points balance."
+        },
+        "readNotificationIds": {
+          "type": "array",
+          "description": "List of notification IDs that the user has read.",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "required": [
@@ -173,15 +180,15 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Notification",
       "type": "object",
-      "description": "Represents a notification sent to a user.",
+      "description": "Represents a broadcast notification sent to all users.",
       "properties": {
         "id": {
           "type": "string",
           "description": "Unique identifier for the Notification entity."
         },
-        "userId": {
+        "title": {
           "type": "string",
-          "description": "Reference to User. (Relationship: User 1:N Notification)"
+          "description": "The title of the notification."
         },
         "notificationDate": {
           "type": "string",
@@ -190,24 +197,19 @@
         },
         "type": {
           "type": "string",
-          "description": "Type of notification (e.g., 'order_update', 'offer', 'loyalty_reward')."
+          "description": "Type of notification (e.g., 'announcement', 'promo', 'maintenance')."
         },
         "message": {
           "type": "string",
           "description": "Content of the notification."
-        },
-        "read": {
-          "type": "boolean",
-          "description": "Indicates whether the notification has been read by the user."
         }
       },
       "required": [
         "id",
-        "userId",
+        "title",
         "notificationDate",
         "type",
-        "message",
-        "read"
+        "message"
       ]
     },
     "LoyaltyProgram": {
@@ -383,18 +385,14 @@
         }
       },
       {
-        "path": "/users/{userId}/notifications/{notificationId}",
+        "path": "/notifications/{notificationId}",
         "definition": {
           "entityName": "Notification",
           "schema": {
             "$ref": "#/backend/entities/Notification"
           },
-          "description": "Stores notifications for a specific user. Uses path-based ownership. Includes denormalized 'userId' for authorization independence.",
+          "description": "Stores global notifications sent by admins. Publicly readable by all users.",
           "params": [
-            {
-              "name": "userId",
-              "description": "The unique ID of the user."
-            },
             {
               "name": "notificationId",
               "description": "The unique ID of the notification."
@@ -471,6 +469,7 @@
         }
       }
     ],
-    "reasoning": "This Firestore structure is designed to support a retail application with AI-powered customer support, personalized recommendations, and loyalty management. It prioritizes security, scalability, and debuggability following the principles of Authorization Independence, Structural Segregation, and Access Modeling.  Key design decisions include:\n\n1.  **Authorization Independence:** The structure avoids chained `get()` calls in security rules. User-owned data is placed in hierarchical paths (`/users/{userId}/orders/{orderId}`) to implicitly enforce ownership without needing to read parent documents.  Collaborative data (if any in future features) would utilize membership maps denormalized into subcollections.  Admin roles are managed via document existence in a dedicated collection.\n\n2.  **Structural Segregation:**  Data with different security requirements is segregated into separate collections (e.g., `/users/{userId}/notifications` for private user notifications versus `/faqs` for public FAQs).  This ensures each collection has a clear and consistent security posture.\n\n3.  **Access Modeling:**  Private user data follows path-based ownership (`/users/{userId}/...`).  Admin access is controlled through the `/roles_admin/{userId}` collection, leveraging existence checks.  The frequently asked questions will be public.\n\n4.  **AI and Support Tickets:**  Support tickets are created in `/support_tickets/{ticketId}`. The tickets contain the `userId` of the customer who created the ticket. Admins can access and manage all support tickets. To enhance the AI capabilities, the frequently asked questions will be stored in `/faqs/{faqId}`. The AI will respond to the customers using the most appropriate answers based on the questions the customer asked. If the customer's question goes beyond the most frequently asked question a ticket will be created.\n\n5.  **QAPs (Query Authorization Patterns):** The structure supports secure `list` operations.  Path-based ownership enables listing operations restricted to a specific user's data (e.g., listing all orders for a user). Segregation of public FAQs enables unrestricted listing.\n\n6. **Denormalization:** The `userId` is duplicated in collections like `orders`, `transactions`, `supportTickets`, `notifications`, and `productRecommendations` to avoid `get()` calls when querying for entities related to a specific user."
+    "reasoning": "This Firestore structure is designed to support a retail application with AI-powered customer support, personalized recommendations, and loyalty management. It prioritizes security, scalability, and debuggability following the principles of Authorization Independence, Structural Segregation, and Access Modeling.  Key design decisions include:\n\n1.  **Authorization Independence:** The structure avoids chained `get()` calls in security rules. User-owned data is placed in hierarchical paths (`/users/{userId}/orders/{orderId}`) to implicitly enforce ownership without needing to read parent documents.  Collaborative data (if any in future features) would utilize membership maps denormalized into subcollections.  Admin roles are managed via document existence in a dedicated collection.\n\n2.  **Structural Segregation:**  Data with different security requirements is segregated into separate collections (e.g., `/users/{userId}/...` for private user data versus `/notifications` for broadcast messages and `/faqs` for public FAQs).  This ensures each collection has a clear and consistent security posture.\n\n3.  **Access Modeling:**  Private user data follows path-based ownership (`/users/{userId}/...`).  Admin access is controlled through the `/roles_admin/{userId}` collection, leveraging existence checks.  The frequently asked questions will be public. Global notifications are readable by all authenticated users.\n\n4.  **AI and Support Tickets:**  Support tickets are created in `/support_tickets/{ticketId}`. The tickets contain the `userId` of the customer who created the ticket. Admins can access and manage all support tickets. To enhance the AI capabilities, the frequently asked questions will be stored in `/faqs/{faqId}`. The AI will respond to the customers using the most appropriate answers based on the questions the customer asked. If the customer's question goes beyond the most frequently asked question a ticket will be created.\n\n5.  **QAPs (Query Authorization Patterns):** The structure supports secure `list` operations.  Path-based ownership enables listing operations restricted to a specific user's data (e.g., listing all orders for a user). Segregation of public FAQs enables unrestricted listing.\n\n6. **Denormalization:** The `userId` is duplicated in collections like `orders`, `transactions`, and `supportTickets` to avoid `get()` calls when querying for entities related to a specific user. A user's `readNotificationIds` are stored on their user document to track viewed broadcast notifications."
   }
 }
+    

@@ -13,7 +13,7 @@
  *
  * Denormalization for Authorization: To ensure fast and secure rule evaluation, `userId` is denormalized onto documents like `SupportTicket`, `Order`, and `Transaction`. This avoids slow and costly `get()` calls in security rules, allowing for direct ownership checks against the document's own data.
  *
- * Structural Segregation: The ruleset leverages separate collections for data with different access controls. For example, private `/users/{userId}/notifications` are kept separate from the public `/faqs` collection, allowing for simple and performant security rules on each.
+ * Structural Segregation: The ruleset leverages separate collections for data with different access controls. For example, private user data is separate from the public `/faqs` collection, allowing for simple and performant security rules on each.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -66,7 +66,7 @@ service cloud.firestore {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
       allow create: if isOwner(userId) && request.resource.data.uid == userId;
-      allow update: if (isOwner(userId) || isAdmin()) && isExistingDoc() && request.resource.data.uid == resource.data.uid;
+      allow update: if (isOwner(userId) && request.resource.data.role == resource.data.role || isAdmin()) && isExistingDoc() && request.resource.data.uid == resource.data.uid;
       allow delete: if isOwner(userId) && isExistingDoc();
     }
 
@@ -102,21 +102,6 @@ service cloud.firestore {
 
     /**
      * @description
-     * Stores notifications for a specific user. Only readable by the owner.
-     * @path /users/{userId}/notifications/{notificationId}
-     * @allow (update) A user can update a notification, for example to mark it as read.
-     * @deny (list) An admin CANNOT list notifications for a specific user to protect privacy.
-     * @principle Enforces path-based ownership for a user's private subcollections.
-     */
-    match /users/{userId}/notifications/{notificationId} {
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.userId == userId;
-      allow update: if isOwner(userId) && isExistingDoc() && request.resource.data.userId == resource.data.userId;
-      allow delete: if isOwner(userId) && isExistingDoc();
-    }
-
-    /**
-     * @description
      * Stores personalized product recommendations for a user. These are read-only for the user
      * and are expected to be written by a trusted backend service.
      * @path /users/{userId}/product_recommendations/{recommendationId}
@@ -129,6 +114,19 @@ service cloud.firestore {
       allow create: if false;
       allow update: if false;
       allow delete: if false;
+    }
+
+    /**
+     * @description
+     * Stores global notifications sent by admins. Customers can read them.
+     * @path /notifications/{notificationId}
+     * @allow (get, list) Authenticated users can read notifications.
+     * @allow (create, update, delete) Admins can manage notifications.
+     * @principle Segregates public broadcast data from private user data.
+     */
+    match /notifications/{notificationId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin();
     }
 
     /**
@@ -199,3 +197,4 @@ service cloud.firestore {
     }
   }
 }
+    

@@ -4,6 +4,7 @@ export interface User {
   displayName: string | null;
   photoURL: string | null;
   role: 'admin' | 'customer';
+  readNotificationIds?: string[];
 }
 
 export interface Product {
@@ -53,11 +54,12 @@ export interface SupportTicket {
   status: 'Open' | 'Resolved';
 }
 
-
 export interface Notification {
   id: string;
   title: string;
-  description: string;
-  date: string;
-  read: boolean;
+  message: string;
+  notificationDate: string;
+  type: 'announcement' | 'promo' | 'maintenance';
 }
+
+    

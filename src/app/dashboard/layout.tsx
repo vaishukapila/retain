@@ -23,11 +23,10 @@ import {
   Gift,
   Heart,
   LifeBuoy,
-  Bell,
   Loader2,
 } from "lucide-react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { NotificationBell } from "@/components/notification-bell";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const { user, role, loading } = useAuth();
@@ -117,10 +116,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             {/* Can add breadcrumbs or page title here */}
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <Bell className="h-5 w-5" />
-              <span className="sr-only">Toggle notifications</span>
-            </Button>
+            <NotificationBell />
             <UserNav />
           </div>
         </header>
@@ -129,3 +125,5 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     </SidebarProvider>
   );
 }
+
+    
