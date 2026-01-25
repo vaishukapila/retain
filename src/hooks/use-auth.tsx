@@ -18,7 +18,15 @@ import {
   onAuthStateChanged,
   type User as FirebaseUser,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import {
+  doc,
+  setDoc,
+  getDoc,
+  collection,
+  query,
+  limit,
+  getDocs,
+} from 'firebase/firestore';
 import { useToast } from './use-toast';
 import { useFirebase } from '@/firebase/provider';
 import type { User as AppUser } from '@/lib/types';
@@ -54,8 +62,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     if (error.code) {
       switch (error.code) {
-        case 'auth/user-not-found':
-        case 'auth/wrong-password':
         case 'auth/invalid-credential':
           description = 'Invalid email or password.';
           break;
@@ -63,7 +69,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           description = 'This email is already registered.';
           break;
         case 'auth/weak-password':
-          description = 'Password should be at least 6 characters.';
+          description = 'Password should be at least 8 characters.';
           break;
         case 'auth/network-request-failed':
           description =
@@ -79,8 +85,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           description = error.message;
           break;
       }
-    }
-     else if (error.message.includes('quota')) {
+    } else if (error.message?.includes('quota')) {
       description = 'The authentication service is currently experiencing high demand. Please try again later.';
     }
 
@@ -98,12 +103,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const userRef = doc(firestore, 'users', firebaseUser.uid);
     const userDoc = await getDoc(userRef);
     if (!userDoc.exists()) {
+      // Check if this is the first user
+      const usersQuery = query(collection(firestore, 'users'), limit(1));
+      const usersSnapshot = await getDocs(usersQuery);
+
+      const newRole = usersSnapshot.empty ? 'admin' : 'customer';
+
       await setDoc(userRef, {
         uid: firebaseUser.uid,
         email: firebaseUser.email,
         displayName: displayName || firebaseUser.displayName,
         photoURL: firebaseUser.photoURL,
-        role: 'customer', // Default role
+        role: newRole,
       });
     }
   };
@@ -117,7 +128,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setRole(userData.role);
         setUser(userData);
       } else {
-        // Also check admin collection for legacy admins
         const adminDocRef = doc(firestore, 'roles_admin', uid);
         const adminDoc = await getDoc(adminDocRef);
         if (adminDoc.exists()) {
