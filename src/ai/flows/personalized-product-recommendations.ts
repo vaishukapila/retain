@@ -38,21 +38,7 @@ export type PersonalizedRecommendationsOutput = z.infer<
 export async function getPersonalizedRecommendations(
   input: PersonalizedRecommendationsInput
 ): Promise<PersonalizedRecommendationsOutput> {
-  try {
-    return await personalizedRecommendationsFlow(input);
-  } catch (e: any) {
-    console.error('Error in personalizedRecommendationsFlow: ', e);
-    let messageText =
-      'Could not generate recommendations at this time. Please try again later.';
-    if (e?.message?.includes('quota')) {
-      messageText =
-        'The recommendation engine is currently experiencing high demand and has exceeded its usage limit. Please try again later.';
-    }
-    return {
-      recommendations: [],
-      reasoning: messageText,
-    };
-  }
+  return await personalizedRecommendationsFlow(input);
 }
 
 const prompt = ai.definePrompt({

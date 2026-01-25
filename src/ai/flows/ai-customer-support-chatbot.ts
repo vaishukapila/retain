@@ -134,20 +134,7 @@ RETURNS, SUPPORT & STORE INFO (76–100)
 
 
 export async function aiCustomerSupportChatbot(input: AiCustomerSupportChatbotInput): Promise<AiCustomerSupportChatbotOutput> {
-  try {
-    return await aiCustomerSupportChatbotFlow(input);
-  } catch (e: any) {
-    console.error('Error in aiCustomerSupportChatbotFlow: ', e);
-    let messageText = "Sorry, I'm having trouble connecting. Please try again later.";
-    if (e?.message?.includes('quota')) {
-      messageText =
-        'The AI assistant is currently experiencing high demand and has exceeded its usage limit. Please try again later.';
-    }
-    return {
-      response: messageText,
-      escalateToAdmin: false,
-    };
-  }
+  return await aiCustomerSupportChatbotFlow(input);
 }
 
 const prompt = ai.definePrompt({

@@ -24,20 +24,24 @@ export default function RecommendationsPage() {
       frequentlyBoughtTogether: ["Wireless headphones"],
     };
 
-    const result = await getPersonalizedRecommendations(input);
-
-    if (result.recommendations.length === 0 && (result.reasoning.includes("limit") || result.reasoning.includes("trouble connecting"))) {
-      toast({
-        variant: 'destructive',
-        title: 'Uh oh! Something went wrong.',
-        description: result.reasoning,
-      });
-      setRecommendations(null);
-    } else {
-      setRecommendations(result);
+    try {
+        const result = await getPersonalizedRecommendations(input);
+        setRecommendations(result);
+    } catch (e: any) {
+        let messageText = "Could not generate recommendations at this time. Please try again later.";
+        if (e?.message?.includes('quota')) {
+          messageText =
+            'The recommendation engine is currently experiencing high demand and has exceeded its usage limit. Please try again later.';
+        }
+        toast({
+            variant: 'destructive',
+            title: 'Uh oh! Something went wrong.',
+            description: messageText,
+        });
+        setRecommendations(null);
+    } finally {
+        setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
   const getProductByName = (name: string) => {

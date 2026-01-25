@@ -12,6 +12,7 @@ import { aiCustomerSupportChatbot } from '@/ai/flows/ai-customer-support-chatbot
 import { useFirebase } from '@/firebase';
 import { addDocumentNonBlocking } from '@/firebase';
 import { collection } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
 
 interface Message {
   id: number;
@@ -29,6 +30,7 @@ export default function SupportPage() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,29 +42,50 @@ export default function SupportPage() {
     setInput('');
     setIsLoading(true);
 
-    const result = await aiCustomerSupportChatbot({ query: currentQuery });
-    
-    if (result.escalateToAdmin) {
-      const ticketsCollection = collection(firestore, 'support_tickets');
-      addDocumentNonBlocking(ticketsCollection, {
-        userId: firebaseUser.uid,
-        customerName: firebaseUser.displayName,
-        userEmail: firebaseUser.email,
-        creationDate: new Date().toISOString(),
-        subject: currentQuery,
-        status: 'Open',
-      });
+    try {
+      const result = await aiCustomerSupportChatbot({ query: currentQuery });
+      
+      if (result.escalateToAdmin) {
+        const ticketsCollection = collection(firestore, 'support_tickets');
+        addDocumentNonBlocking(ticketsCollection, {
+          userId: firebaseUser.uid,
+          customerName: firebaseUser.displayName,
+          userEmail: firebaseUser.email,
+          creationDate: new Date().toISOString(),
+          subject: currentQuery,
+          status: 'Open',
+        });
+      }
+      
+      const aiMessage: Message = {
+        id: Date.now() + 1,
+        text: result.response,
+        sender: 'ai',
+        isEscalated: result.escalateToAdmin,
+      };
+  
+      setMessages(prev => [...prev, aiMessage]);
+    } catch (e: any) {
+        let messageText = "Sorry, I'm having trouble connecting. Please try again later.";
+        if (e?.message?.includes('quota')) {
+          messageText =
+            'The AI assistant is currently experiencing high demand and has exceeded its usage limit. Please try again later.';
+        }
+        toast({
+          variant: 'destructive',
+          title: 'AI Assistant Error',
+          description: messageText,
+        });
+        const errorMessage: Message = {
+            id: Date.now() + 1,
+            text: messageText,
+            sender: 'ai',
+            isEscalated: false,
+        };
+        setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
     }
-    
-    const aiMessage: Message = {
-      id: Date.now() + 1,
-      text: result.response,
-      sender: 'ai',
-      isEscalated: result.escalateToAdmin,
-    };
-
-    setMessages(prev => [...prev, aiMessage]);
-    setIsLoading(false);
   };
 
   useEffect(() => {
