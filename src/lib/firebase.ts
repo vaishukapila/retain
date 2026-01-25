@@ -12,12 +12,11 @@ import type { User } from './types';
 import { mockUsers } from './mock-data';
 
 const firebaseConfig: FirebaseOptions = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "your-api-key",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "your-auth-domain",
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "your-project-id",
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "your-storage-bucket",
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "your-messaging-sender-id",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "your-app-id",
+  projectId: "studio-1464535918-b6c00",
+  appId: "1:990531123961:web:b812b2f1b9735fc83fc028",
+  apiKey: "AIzaSyBZSnjsGZVNx1cE-224nqnvbBJ8km-KhCM",
+  authDomain: "studio-1464535918-b6c00.firebaseapp.com",
+  messagingSenderId: "990531123961"
 };
 
 const app = initializeApp(firebaseConfig);
