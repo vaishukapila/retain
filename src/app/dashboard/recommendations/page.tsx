@@ -21,26 +21,23 @@ export default function RecommendationsPage() {
     // In a real app, this data would come from the user's actual history
     const input = {
       pastPurchases: ["Stylish blue running shoes", "Smart watch with fitness tracker"],
-      frequentlyBoughtTogether: ["Stainless steel water bottle", "Wireless headphones"],
+      frequentlyBoughtTogether: ["Wireless headphones"],
     };
 
-    try {
-      const result = await getPersonalizedRecommendations(input);
-      setRecommendations(result);
-    } catch (error: any) {
-      console.error("Failed to get recommendations:", error);
-      let description = "Could not generate recommendations at this time. Please try again later.";
-      if (error?.message?.includes("quota")) {
-        description = "The recommendation engine is currently experiencing high demand and has exceeded its usage limit. Please try again later.";
-      }
+    const result = await getPersonalizedRecommendations(input);
+
+    if (result.recommendations.length === 0 && (result.reasoning.includes("limit") || result.reasoning.includes("trouble connecting"))) {
       toast({
-        variant: "destructive",
-        title: "Uh oh! Something went wrong.",
-        description,
+        variant: 'destructive',
+        title: 'Uh oh! Something went wrong.',
+        description: result.reasoning,
       });
-    } finally {
-      setIsLoading(false);
+      setRecommendations(null);
+    } else {
+      setRecommendations(result);
     }
+
+    setIsLoading(false);
   };
 
   const getProductByName = (name: string) => {

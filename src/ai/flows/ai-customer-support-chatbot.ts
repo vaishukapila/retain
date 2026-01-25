@@ -23,7 +23,20 @@ const AiCustomerSupportChatbotOutputSchema = z.object({
 export type AiCustomerSupportChatbotOutput = z.infer<typeof AiCustomerSupportChatbotOutputSchema>;
 
 export async function aiCustomerSupportChatbot(input: AiCustomerSupportChatbotInput): Promise<AiCustomerSupportChatbotOutput> {
-  return aiCustomerSupportChatbotFlow(input);
+  try {
+    return await aiCustomerSupportChatbotFlow(input);
+  } catch (e: any) {
+    console.error('Error in aiCustomerSupportChatbotFlow: ', e);
+    let messageText = "Sorry, I'm having trouble connecting. Please try again later.";
+    if (e?.message?.includes('quota')) {
+      messageText =
+        'The AI assistant is currently experiencing high demand and has exceeded its usage limit. Please try again later.';
+    }
+    return {
+      response: messageText,
+      escalateToAdmin: false,
+    };
+  }
 }
 
 const prompt = ai.definePrompt({
