@@ -19,6 +19,14 @@
           "description": "The user's email address.",
           "format": "email"
         },
+        "displayName": {
+          "type": "string",
+          "description": "The user's display name."
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "URL of the user's profile picture."
+        },
         "role": {
           "type": "string",
           "description": "The user's role (e.g., 'admin', 'customer')."
@@ -36,7 +44,6 @@
       },
       "required": [
         "id",
-        "googleId",
         "email",
         "role",
         "loyaltyPoints",

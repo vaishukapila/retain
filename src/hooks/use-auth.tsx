@@ -1,21 +1,20 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
+import {
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut as firebaseSignOut,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   updateProfile,
-  type User as FirebaseUser
+  type User as FirebaseUser,
 } from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import type { User as AppUser } from '@/lib/types';
-import { 
-  auth,
-  signInWithGoogle as googleSignIn, 
-  signOutUser, 
-  onAuthStateChanged,
-  getUserProfile
-} from '@/lib/firebase';
+import { useUser, useFirestore, useAuth as useFirebaseAuth } from '@/firebase';
 import { useToast } from './use-toast';
+import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 interface AuthContextType {
   user: AppUser | null;
@@ -31,117 +30,171 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<AppUser | null>(null);
-  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
-  const [role, setRole] = useState<'admin' | 'customer' | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user: firebaseUser, isUserLoading: firebaseUserLoading } = useUser();
+  const firestore = useFirestore();
+  const auth = useFirebaseAuth();
   const { toast } = useToast();
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(async (fbUser) => {
-      setLoading(true);
-      if (fbUser) {
-        setFirebaseUser(fbUser);
-        const userProfile = await getUserProfile(fbUser.uid, fbUser.email);
-        if (userProfile) {
-          // If displayName is null on profile but exists on fbUser, use fbUser's.
-          if (!userProfile.displayName && fbUser.displayName) {
-            userProfile.displayName = fbUser.displayName;
-          }
-           if (!userProfile.photoURL && fbUser.photoURL) {
-            userProfile.photoURL = fbUser.photoURL;
-          }
-          setUser(userProfile);
-          setRole(userProfile.role);
-        } else {
-            // This case might happen for a newly signed up user before their profile is created in our mock DB.
-            const tempProfile: AppUser = {
-                uid: fbUser.uid,
-                email: fbUser.email,
-                displayName: fbUser.displayName,
-                photoURL: fbUser.photoURL,
-                role: 'customer' // default role
-            };
-            setUser(tempProfile);
-            setRole('customer');
-        }
-      } else {
-        setUser(null);
-        setFirebaseUser(null);
-        setRole(null);
-      }
-      setLoading(false);
-    });
+  const [appUser, setAppUser] = useState<AppUser | null>(null);
+  const [role, setRole] = useState<'admin' | 'customer' | null>(null);
+  const [loading, setLoading] = useState(true);
 
-    return () => unsubscribe();
-  }, []);
+  useEffect(() => {
+    const syncUser = async () => {
+      if (firebaseUser && firestore) {
+        setLoading(true);
+        const userDocRef = doc(firestore, 'users', firebaseUser.uid);
+        const docSnap = await getDoc(userDocRef);
+
+        if (docSnap.exists()) {
+          const userData = docSnap.data();
+          const combinedUser: AppUser = {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: userData.displayName || firebaseUser.displayName,
+            photoURL: userData.photoURL || firebaseUser.photoURL,
+            role: userData.role,
+          };
+          setAppUser(combinedUser);
+          setRole(userData.role);
+        } else {
+          // Profile doesn't exist, this will be handled on sign-up.
+           const tempProfile: AppUser = {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              displayName: firebaseUser.displayName,
+              photoURL: firebaseUser.photoURL,
+              role: 'customer' // default role
+          };
+          setAppUser(tempProfile);
+          setRole('customer');
+        }
+        setLoading(false);
+      } else if (!firebaseUserLoading) {
+        setAppUser(null);
+        setRole(null);
+        setLoading(false);
+      }
+    };
+
+    syncUser();
+  }, [firebaseUser, firebaseUserLoading, firestore]);
 
   const handleError = (error: any) => {
-      console.error("Authentication error:", error);
-      let description = "An unknown error occurred.";
-      if (typeof error.code === 'string') {
-        switch (error.code) {
-          case 'auth/user-not-found':
-          case 'auth/wrong-password':
-          case 'auth/invalid-credential':
-            description = "Invalid email or password.";
-            break;
-          case 'auth/email-already-in-use':
-            description = "This email is already registered.";
-            break;
-          case 'auth/weak-password':
-            description = "The password is too weak. It must be at least 6 characters long.";
-            break;
-          default:
-            description = error.message;
-        }
+    console.error("Authentication error:", error);
+    let description = "An unknown error occurred.";
+    if (typeof error.code === 'string') {
+      switch (error.code) {
+        case 'auth/user-not-found':
+        case 'auth/wrong-password':
+        case 'auth/invalid-credential':
+          description = "Invalid email or password.";
+          break;
+        case 'auth/email-already-in-use':
+          description = "This email is already registered.";
+          break;
+        case 'auth/weak-password':
+          description = "The password must be at least 8 characters long.";
+          break;
+        case 'auth/popup-closed-by-user':
+          description = "Sign-in was cancelled.";
+          break;
+        default:
+          description = error.message;
       }
-      toast({
-        variant: "destructive",
-        title: "Authentication Failed",
-        description,
+    }
+    toast({
+      variant: "destructive",
+      title: "Authentication Failed",
+      description,
+    });
+    setLoading(false);
+  };
+  
+  const createFirestoreUser = async (user: FirebaseUser, displayName?: string) => {
+    if (!firestore) return;
+    const userDocRef = doc(firestore, 'users', user.uid);
+    const docSnap = await getDoc(userDocRef);
+
+    if (!docSnap.exists()) {
+      const isGoogle = user.providerData.some(p => p.providerId === 'google.com');
+      const finalRole = user.email === 'admin@test.com' ? 'admin' : 'customer';
+      const userDataForFirestore = {
+          id: user.uid,
+          googleId: isGoogle ? user.providerData.find(p => p.providerId === 'google.com')?.uid : null,
+          email: user.email,
+          displayName: displayName || user.displayName,
+          photoURL: user.photoURL,
+          role: finalRole,
+          loyaltyPoints: 0,
+          createdAt: new Date().toISOString(),
+      };
+
+      setDocumentNonBlocking(userDocRef, userDataForFirestore, {});
+      setAppUser({
+        uid: user.uid,
+        email: user.email,
+        displayName: displayName || user.displayName,
+        photoURL: user.photoURL,
+        role: finalRole,
       });
-      setLoading(false);
+      setRole(finalRole);
+    }
   }
 
   const signInWithGoogle = async () => {
+    if (!auth) return;
     setLoading(true);
     try {
-      await googleSignIn();
-    } catch(error) {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      await createFirestoreUser(result.user);
+    } catch (error) {
       handleError(error);
     }
   };
-  
+
   const signInWithEmail = async (email: string, password: string) => {
+    if (!auth) return;
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
       handleError(error);
     }
-  }
-  
+  };
+
   const signUpWithEmail = async (displayName: string, email: string, password: string) => {
+    if (!auth) return;
     setLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(userCredential.user, { displayName });
-    } catch(error) {
+      await createFirestoreUser(userCredential.user, displayName);
+    } catch (error) {
       handleError(error);
-    }
-  }
-
-  const handleSignOut = async () => {
-    setLoading(true);
-    try {
-      await signOutUser();
-    } catch(error) {
-        handleError(error);
     }
   };
 
-  const value = { user, firebaseUser, role, loading, signInWithGoogle, signOut: handleSignOut, signInWithEmail, signUpWithEmail };
+  const signOut = async () => {
+    if (!auth) return;
+    try {
+      await firebaseSignOut(auth);
+    } catch (error) {
+      handleError(error);
+    }
+  };
+
+  const value = {
+    user: appUser,
+    firebaseUser,
+    role,
+    loading,
+    signInWithGoogle,
+    signOut,
+    signInWithEmail,
+    signUpWithEmail
+  };
 
   return (
     <AuthContext.Provider value={value}>
