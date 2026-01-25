@@ -63,7 +63,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (error.code) {
       switch (error.code) {
         case 'auth/invalid-credential':
-          description = 'Invalid email or password.';
+          description = 'Invalid email or password. Please check your credentials or sign up if you are a new user.';
           break;
         case 'auth/email-already-in-use':
           description = 'This email is already registered.';
