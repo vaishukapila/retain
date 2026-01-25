@@ -10,11 +10,11 @@ import {
   updateProfile,
   type User as FirebaseUser,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import type { User as AppUser } from '@/lib/types';
 import { useUser, useFirestore, useAuth as useFirebaseAuth } from '@/firebase';
 import { useToast } from './use-toast';
-import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { setDocumentNonBlocking } from '@/firebase';
 
 interface AuthContextType {
   user: AppUser | null;
@@ -58,16 +58,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setAppUser(combinedUser);
           setRole(userData.role);
         } else {
-          // Profile doesn't exist, this will be handled on sign-up.
-           const tempProfile: AppUser = {
-              uid: firebaseUser.uid,
-              email: firebaseUser.email,
-              displayName: firebaseUser.displayName,
-              photoURL: firebaseUser.photoURL,
-              role: 'customer' // default role
-          };
-          setAppUser(tempProfile);
-          setRole('customer');
+          // Profile might be in the process of being created.
+          // Let's rely on createFirestoreUser to set the initial state.
         }
         setLoading(false);
       } else if (!firebaseUserLoading) {
@@ -115,7 +107,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     if (!docSnap.exists()) {
       const isGoogle = user.providerData.some(p => p.providerId === 'google.com');
-      const finalRole = user.email === 'admin@test.com' ? 'admin' : 'customer';
+      // A simple way to assign admin role. In a real app, this should be handled securely.
+      const finalRole = user.email === 'admin@test.com' ? 'admin' : 'customer'; 
       const userDataForFirestore = {
           id: user.uid,
           googleId: isGoogle ? user.providerData.find(p => p.providerId === 'google.com')?.uid : null,
@@ -124,17 +117,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           photoURL: user.photoURL,
           role: finalRole,
           loyaltyPoints: 0,
-          createdAt: new Date().toISOString(),
+          createdAt: serverTimestamp(),
       };
 
-      setDocumentNonBlocking(userDocRef, userDataForFirestore, {});
-      setAppUser({
+      setDocumentNonBlocking(userDocRef, userDataForFirestore, {merge:true});
+      const appProfile: AppUser = {
         uid: user.uid,
         email: user.email,
         displayName: displayName || user.displayName,
         photoURL: user.photoURL,
         role: finalRole,
-      });
+      };
+      setAppUser(appProfile);
       setRole(finalRole);
     }
   }
