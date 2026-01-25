@@ -40,7 +40,7 @@ export default function SignupPage() {
   }, [user, loading, router]);
 
   const onSubmit = async (values: z.infer<typeof signupSchema>) => {
-    await signUpWithEmail(values.displayName, values.email);
+    await signUpWithEmail(values.displayName, values.email, values.password);
   };
 
   if (loading || user) {
@@ -104,8 +104,8 @@ export default function SignupPage() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+                {form.formState.isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Create Account
               </Button>
             </form>

@@ -43,7 +43,7 @@ export default function LoginPage() {
   }, [user, role, loading, router]);
 
   const onSubmit = async (values: z.infer<typeof loginSchema>) => {
-    await signInWithEmail(values.email);
+    await signInWithEmail(values.email, values.password);
   };
 
   if (loading || user) {
@@ -94,8 +94,8 @@ export default function LoginPage() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+                {form.formState.isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Sign In
               </Button>
             </form>
