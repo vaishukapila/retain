@@ -55,7 +55,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       switch (error.code) {
         case 'auth/invalid-credential':
           description =
-            'Invalid credentials. If you are a new user, please sign up first.';
+            'Invalid email or password. If this is a new account, please use the Sign Up page.';
           break;
         case 'auth/email-already-in-use':
           description = 'This email is already registered. Please sign in.';
@@ -98,7 +98,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setUser(appUser);
           setRole(appUser.role);
         } else {
-          // Handles first-time sign-in with a social provider (e.g., Google)
+          // This case handles first-time social provider sign-in, or if the
+          // user document creation failed during sign up for some reason.
           const userRole =
             firebaseUser.email?.toLowerCase() === 'admin@freshmart.com'
               ? 'admin'
@@ -111,9 +112,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             photoURL: firebaseUser.photoURL,
             role: userRole,
           };
-          await setDoc(userDocRef, newUserData);
-          setUser(newUserData);
-          setRole(userRole);
+          try {
+            await setDoc(userDocRef, newUserData);
+            setUser(newUserData);
+            setRole(userRole);
+          } catch (error) {
+            handleError(error)
+          }
         }
       } else {
         setUser(null);
@@ -138,8 +143,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signInWithEmail = async (email: string, password: string) => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
-    } catch (error) {
-      handleError(error);
+    } catch (error: any) {
+      if (
+        error.code === 'auth/invalid-credential' &&
+        email.toLowerCase() === 'admin@freshmart.com'
+      ) {
+        // If login fails for the admin email, attempt to create the account.
+        // This makes the login process seamless for the designated admin.
+        try {
+          await signUpWithEmail('Admin', email, password);
+        } catch (signupError) {
+          handleError(signupError); // Handle potential sign-up errors
+        }
+      } else {
+        handleError(error);
+      }
     }
   };
 
@@ -170,7 +188,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await setDoc(userRef, newUserData);
       // onAuthStateChanged will then read the newly created user data.
     } catch (error) {
-      handleError(error);
+      // We throw the error so it can be caught in the calling function,
+      // which is useful for the special admin auto-signup flow.
+      throw error;
     }
   };
 
