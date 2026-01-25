@@ -44,11 +44,15 @@ export default function SupportPage() {
         isEscalated: result.escalateToAdmin,
       };
       setMessages(prev => [...prev, aiMessage]);
-    } catch (error) {
+    } catch (error: any) {
       console.error("AI chat error:", error);
+      let messageText = "Sorry, I'm having trouble connecting. Please try again later.";
+      if (error?.message?.includes("quota")) {
+        messageText = "The AI assistant is currently experiencing high demand and has exceeded its usage limit. Please try again later.";
+      }
       const errorMessage: Message = {
         id: Date.now() + 1,
-        text: "Sorry, I'm having trouble connecting. Please try again later.",
+        text: messageText,
         sender: 'ai',
       };
       setMessages(prev => [...prev, errorMessage]);

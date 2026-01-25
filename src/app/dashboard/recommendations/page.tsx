@@ -7,10 +7,12 @@ import { getPersonalizedRecommendations, type PersonalizedRecommendationsOutput 
 import { Loader2, Wand2, ShoppingCart } from "lucide-react";
 import Image from 'next/image';
 import { mockProducts } from '@/lib/mock-data';
+import { useToast } from '@/hooks/use-toast';
 
 export default function RecommendationsPage() {
   const [recommendations, setRecommendations] = useState<PersonalizedRecommendationsOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
 
   const handleGetRecommendations = async () => {
     setIsLoading(true);
@@ -25,9 +27,17 @@ export default function RecommendationsPage() {
     try {
       const result = await getPersonalizedRecommendations(input);
       setRecommendations(result);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to get recommendations:", error);
-      // Here you might want to set an error state and show a toast
+      let description = "Could not generate recommendations at this time. Please try again later.";
+      if (error?.message?.includes("quota")) {
+        description = "The recommendation engine is currently experiencing high demand and has exceeded its usage limit. Please try again later.";
+      }
+      toast({
+        variant: "destructive",
+        title: "Uh oh! Something went wrong.",
+        description,
+      });
     } finally {
       setIsLoading(false);
     }
