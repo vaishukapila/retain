@@ -1,3 +1,52 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "product-1",
+      "description": "Stylish blue running shoes",
+      "imageUrl": "https://images.unsplash.com/photo-1726200334221-53e9dd1650a7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHxibHVlJTIwc2hvZXN8ZW58MHx8fHwxNzY5MzU2MzIyfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "blue shoes"
+    },
+    {
+      "id": "product-2",
+      "description": "Modern wireless headphones",
+      "imageUrl": "https://images.unsplash.com/photo-1577174881658-0f30ed549adc?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8aGVhZHBob25lc3xlbnwwfHx8fDE3NjkzMzkxOTd8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "headphones"
+    },
+    {
+      "id": "product-3",
+      "description": "Ergonomic office chair",
+      "imageUrl": "https://images.unsplash.com/photo-1633789638578-eef0da1dc063?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHxvZmZpY2UlMjBjaGFpcnxlbnwwfHx8fDE3NjkzMTAyNjR8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "office chair"
+    },
+    {
+      "id": "product-4",
+      "description": "Smart watch with fitness tracker",
+      "imageUrl": "https://images.unsplash.com/photo-1579586337278-3befd40fd17a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxzbWFydCUyMHdhdGNofGVufDB8fHx8MTc2OTMwODc2Nnww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "smart watch"
+    },
+    {
+      "id": "product-5",
+      "description": "Stainless steel water bottle",
+      "imageUrl": "https://images.unsplash.com/photo-1586277419671-f34cf56500a0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8d2F0ZXIlMjBib3R0bGV8ZW58MHx8fHwxNzY5MzMxNTk1fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "water bottle"
+    },
+    {
+      "id": "product-6",
+      "description": "Leather minimalist wallet",
+      "imageUrl": "https://images.unsplash.com/photo-1606503825008-909a67e63c3d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHxsZWF0aGVyJTIwd2FsbGV0fGVufDB8fHx8MTc2OTMyNjEwMXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "leather wallet"
+    },
+    {
+      "id": "product-7",
+      "description": "Portable bluetooth speaker",
+      "imageUrl": "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxibHVldG9vdGglMjBzcGVha2VyfGVufDB8fHx8MTc2OTI0MjYxMXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "bluetooth speaker"
+    },
+    {
+      "id": "product-8",
+      "description": "Organic ground coffee",
+      "imageUrl": "https://images.unsplash.com/photo-1580933073521-dc49ac0d4e6a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHxjb2ZmZWUlMjBiZWFuc3xlbnwwfHx8fDE3NjkyNzg5ODR8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "coffee beans"
+    }
+  ]
 }

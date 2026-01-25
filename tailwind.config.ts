@@ -12,7 +12,7 @@ export default {
       fontFamily: {
         body: ['Inter', 'sans-serif'],
         headline: ['Inter', 'sans-serif'],
-        code: ['monospace'],
+        code: ['"Source Code Pro"', 'monospace'],
       },
       colors: {
         background: 'hsl(var(--background))',
@@ -85,7 +85,7 @@ export default {
             height: 'var(--radix-accordion-content-height)',
           },
           to: {
-            height: '0',
+            height: 'var(--radix-accordion-content-height)',
           },
         },
       },
