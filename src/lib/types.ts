@@ -45,12 +45,14 @@ export interface LoyaltyInfo {
 
 export interface SupportTicket {
   id: string;
-  customerId: string;
+  userId: string;
   customerName: string;
-  date: string;
-  query: string;
+  userEmail: string;
+  creationDate: string;
+  subject: string;
   status: 'Open' | 'Resolved';
 }
+
 
 export interface Notification {
   id: string;

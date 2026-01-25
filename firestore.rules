@@ -8,7 +8,7 @@
  * Key Security Decisions:
  * - User Data Privacy: All collections under `/users/{userId}` are strictly owned by that user. No other user can read or write to this data tree.
  * - Admin Roles: Administrative privileges are determined by the existence of a user's UID in the `/roles_admin` collection. This collection is not client-accessible and must be managed via a trusted server environment.
- * - No User Enumeration: Listing documents in the top-level `/users` collection is explicitly forbidden to protect user privacy.
+ * - No User Enumeration (for non-admins): Listing documents in the top-level `/users` collection is explicitly forbidden for non-admins to protect user privacy. Admins are allowed to list users for management purposes.
  * - Public vs. Private: Data is segregated by structure. `/faqs` is public for reads, while all other data requires authentication. `support_tickets` allow a user to create a ticket, which can then be seen and managed by admins or the original user.
  *
  * Denormalization for Authorization: To ensure fast and secure rule evaluation, `userId` is denormalized onto documents like `SupportTicket`, `Order`, and `Transaction`. This avoids slow and costly `get()` calls in security rules, allowing for direct ownership checks against the document's own data.
@@ -58,14 +58,15 @@ service cloud.firestore {
      * for all their private, user-owned data.
      * @path /users/{userId}
      * @allow (create) A new user can create their own profile document.
+     * @allow (list) Admins can list all users.
      * @deny (get) An authenticated user `user_abc` CANNOT read the profile of `user_xyz`.
      * @principle Restricts access to a user's own data tree and enforces Self-Creation.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isOwner(userId) && isExistingDoc() && request.resource.data.id == resource.data.id;
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && request.resource.data.uid == userId;
+      allow update: if (isOwner(userId) || isAdmin()) && isExistingDoc() && request.resource.data.uid == resource.data.uid;
       allow delete: if isOwner(userId) && isExistingDoc();
     }
 
@@ -78,10 +79,10 @@ service cloud.firestore {
      * @principle Enforces path-based ownership for a user's private subcollections.
      */
     match /users/{userId}/orders/{orderId} {
-      allow get, list: if isOwner(userId);
+      allow get, list: if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId) && request.resource.data.userId == userId;
-      allow update: if isOwner(userId) && isExistingDoc() && request.resource.data.userId == resource.data.userId;
-      allow delete: if isOwner(userId) && isExistingDoc();
+      allow update: if (isOwner(userId) || isAdmin()) && isExistingDoc() && request.resource.data.userId == resource.data.userId;
+      allow delete: if (isOwner(userId) || isAdmin()) && isExistingDoc();
     }
 
     /**
@@ -93,10 +94,10 @@ service cloud.firestore {
      * @principle Enforces path-based ownership for a user's private subcollections.
      */
     match /users/{userId}/transactions/{transactionId} {
-      allow get, list: if isOwner(userId);
+      allow get, list: if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId) && request.resource.data.userId == userId;
-      allow update: if isOwner(userId) && isExistingDoc() && request.resource.data.userId == resource.data.userId;
-      allow delete: if isOwner(userId) && isExistingDoc();
+      allow update: if (isOwner(userId) || isAdmin()) && isExistingDoc() && request.resource.data.userId == resource.data.userId;
+      allow delete: if (isOwner(userId) || isAdmin()) && isExistingDoc();
     }
 
     /**

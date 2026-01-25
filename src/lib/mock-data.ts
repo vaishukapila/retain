@@ -54,11 +54,6 @@ export const mockLoyaltyInfo: LoyaltyInfo = {
   ],
 };
 
-export const mockSupportTickets: SupportTicket[] = [
-  { id: 'TKT001', customerId: '1', customerName: 'John Doe', date: '2024-07-25', query: 'Where is my order ORD002?', status: 'Resolved' },
-  { id: 'TKT002', customerId: '3', customerName: 'Jane Doe', date: '2024-07-30', query: 'I want to return an item from order ORD003.', status: 'Open' },
-];
-
 export const mockNotifications: Notification[] = [
     { id: '1', title: 'Order Shipped!', description: 'Your order #ORD002 has been shipped and is on its way.', date: '2024-07-28', read: false },
     { id: '2', title: 'New Loyalty Reward', description: 'You have enough points to claim a $10 discount!', date: '2024-07-27', read: false },

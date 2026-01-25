@@ -1,10 +1,28 @@
-"use client";
+'use client';
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-import type { User as AppUser } from '@/lib/types';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+  useCallback,
+} from 'react';
+import {
+  GoogleAuthProvider,
+  signInWithPopup,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut as firebaseSignOut,
+  updateProfile,
+  onAuthStateChanged,
+  type User as FirebaseUser,
+} from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { useToast } from './use-toast';
-import { mockUsers } from '@/lib/mock-data';
-import type { User as FirebaseUser } from 'firebase/auth';
+import { useFirebase } from '@/firebase/provider';
+import type { User as AppUser } from '@/lib/types';
+import { Loader2 } from 'lucide-react';
 
 interface AuthContextType {
   user: AppUser | null;
@@ -13,89 +31,185 @@ interface AuthContextType {
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
-  signUpWithEmail: (displayName: string, email: string, password: string) => Promise<void>;
+  signUpWithEmail: (
+    displayName: string,
+    email: string,
+    password: string
+  ) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const customerUser: AppUser = mockUsers.find(u => u.email === 'customer@test.com')!;
-
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const { auth, firestore, isUserLoading } = useFirebase();
   const [user, setUser] = useState<AppUser | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [role, setRole] = useState<'admin' | 'customer' | null>(null);
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  const role = user?.role || null;
+  const handleError = (error: any) => {
+    console.error('Authentication error:', error);
+    let description = 'An unexpected error occurred. Please try again.';
+
+    if (error.code) {
+      switch (error.code) {
+        case 'auth/user-not-found':
+        case 'auth/wrong-password':
+        case 'auth/invalid-credential':
+          description = 'Invalid email or password.';
+          break;
+        case 'auth/email-already-in-use':
+          description = 'This email is already registered.';
+          break;
+        case 'auth/weak-password':
+          description = 'Password should be at least 6 characters.';
+          break;
+        case 'auth/network-request-failed':
+          description =
+            'Network error. Please check your internet connection.';
+          break;
+        case 'auth/popup-closed-by-user':
+          description = 'Sign-in process was cancelled.';
+          break;
+        case 'auth/identity-toolkit-api-has-not-been-used-in-project-885460961560-before-or-it-is-disabled.-enable-it-by-visiting-https://console.developers.google.com/apis/api/identitytoolkit.googleapis.com/overview?project=885460961560-then-retry.-if-you-enabled-this-api-recently,-wait-a-few-minutes-for-the-action-to-propagate-to-our-systems-and-retry.':
+          description = 'Authentication service is not enabled. Please enable the Identity Toolkit API in your Google Cloud console.';
+          break;
+        default:
+          description = error.message;
+          break;
+      }
+    }
+     else if (error.message.includes('quota')) {
+      description = 'The authentication service is currently experiencing high demand. Please try again later.';
+    }
+
+    toast({
+      variant: 'destructive',
+      title: 'Authentication Failed',
+      description,
+    });
+  };
+
+  const createFirestoreUser = async (
+    firebaseUser: FirebaseUser,
+    displayName?: string
+  ) => {
+    const userRef = doc(firestore, 'users', firebaseUser.uid);
+    const userDoc = await getDoc(userRef);
+    if (!userDoc.exists()) {
+      await setDoc(userRef, {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        displayName: displayName || firebaseUser.displayName,
+        photoURL: firebaseUser.photoURL,
+        role: 'customer', // Default role
+      });
+    }
+  };
+
+  const fetchUserRole = useCallback(
+    async (uid: string) => {
+      const userDocRef = doc(firestore, 'users', uid);
+      const userDoc = await getDoc(userDocRef);
+      if (userDoc.exists()) {
+        const userData = userDoc.data() as AppUser;
+        setRole(userData.role);
+        setUser(userData);
+      } else {
+        // Also check admin collection for legacy admins
+        const adminDocRef = doc(firestore, 'roles_admin', uid);
+        const adminDoc = await getDoc(adminDocRef);
+        if (adminDoc.exists()) {
+          setRole('admin');
+        } else {
+          setRole('customer');
+        }
+      }
+    },
+    [firestore]
+  );
+  
+  useEffect(() => {
+    setLoading(isUserLoading);
+     if (isUserLoading) {
+      setUser(null);
+      setRole(null);
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        await fetchUserRole(firebaseUser.uid);
+        const userDocRef = doc(firestore, 'users', firebaseUser.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        if(userDocSnap.exists()) {
+            setUser(userDocSnap.data() as AppUser);
+        }
+      } else {
+        setUser(null);
+        setRole(null);
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [auth, fetchUserRole, firestore, isUserLoading]);
+
 
   const signInWithGoogle = async () => {
     setLoading(true);
-    // Simulate a successful Google sign-in for a customer
-    setTimeout(() => {
-      setUser(customerUser);
-      setLoading(false);
-      toast({ title: "Signed in successfully" });
-    }, 500);
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      await createFirestoreUser(result.user);
+    } catch (error) {
+      handleError(error);
+    } finally {
+      // Don't setLoading(false) here, onAuthStateChanged will handle it
+    }
   };
 
   const signInWithEmail = async (email: string, password: string) => {
     setLoading(true);
-    setTimeout(() => {
-      const foundUser = mockUsers.find(u => u.email === email);
-      if (foundUser) {
-        // In a real app, you'd check the password. Here we just accept any.
-        setUser(foundUser);
-        toast({ title: "Signed in successfully" });
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Authentication Failed",
-          description: "Invalid email or password.",
-        });
-      }
-      setLoading(false);
-    }, 500);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (error) {
+      handleError(error);
+      setLoading(false); // only set loading false on error
+    }
   };
 
-  const signUpWithEmail = async (displayName: string, email: string, password: string) => {
-     setLoading(true);
-     setTimeout(() => {
-        if (mockUsers.some(u => u.email === email)) {
-            toast({
-                variant: "destructive",
-                title: "Sign-up Failed",
-                description: "This email is already registered.",
-            });
-            setLoading(false);
-            return;
-        }
-
-        const newUser: AppUser = {
-            uid: `mock-${Date.now()}`,
-            email,
-            displayName,
-            photoURL: `https://i.pravatar.cc/150?u=${email}`,
-            role: 'customer'
-        };
-        // In a real app, you'd add the user to your mock data source if needed.
-        // For this mock, we'll just set them as the current user.
-        setUser(newUser);
-        setLoading(false);
-        toast({ title: "Account created successfully" });
-     }, 500);
+  const signUpWithEmail = async (
+    displayName: string,
+    email: string,
+    password: string
+  ) => {
+    setLoading(true);
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      await updateProfile(userCredential.user, { displayName });
+      await createFirestoreUser(userCredential.user, displayName);
+    } catch (error) {
+      handleError(error);
+      setLoading(false); // only set loading false on error
+    }
   };
 
   const signOut = async () => {
     setLoading(true);
-    setTimeout(() => {
-      setUser(null);
+    try {
+      await firebaseSignOut(auth);
+      // user state will be cleared by onAuthStateChanged
+    } catch (error) {
+      handleError(error);
       setLoading(false);
-    }, 300);
+    }
   };
 
   const value = {
-    user,
-    firebaseUser: null, // Always null in mock mode
+    user: user,
+    firebaseUser: auth.currentUser,
     role,
     loading,
     signInWithGoogle,
@@ -103,6 +217,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     signUpWithEmail,
     signOut,
   };
+  
+  if (isUserLoading) {
+      return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-16 w-16 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <AuthContext.Provider value={value}>
