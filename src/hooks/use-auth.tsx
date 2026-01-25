@@ -18,6 +18,8 @@ interface AuthContextType {
   role: 'admin' | 'customer' | null;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
+  signInWithEmail: (email: string) => Promise<void>;
+  signUpWithEmail: (displayName: string, email: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -29,41 +31,65 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [role, setRole] = useState<'admin' | 'customer' | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const mockLogin = (appUser: AppUser) => {
+    const mockFbUser: MockFirebaseUser = {
+      uid: appUser.uid,
+      email: appUser.email,
+      displayName: appUser.displayName,
+      photoURL: appUser.photoURL,
+    };
+    setUser(appUser);
+    setFirebaseUser(mockFbUser);
+    setRole(appUser.role);
+  }
+
   const signInWithGoogle = async () => {
     setLoading(true);
-    // This is a mock sign-in. In a real app, this would involve a popup
-    // and communication with Firebase servers.
-    // We'll simulate signing in as the first customer from our mock data.
     const mockCustomer = mockUsers.find(u => u.role === 'customer');
     
     if (mockCustomer) {
-      const mockFbUser: MockFirebaseUser = {
-        uid: mockCustomer.uid,
-        email: mockCustomer.email,
-        displayName: mockCustomer.displayName,
-        photoURL: mockCustomer.photoURL,
-      };
-      setUser(mockCustomer);
-      setFirebaseUser(mockFbUser);
-      setRole(mockCustomer.role);
+      mockLogin(mockCustomer);
     }
     
-    // Simulate network delay
     await new Promise(resolve => setTimeout(resolve, 500));
     setLoading(false);
   };
+  
+  const signInWithEmail = async (email: string) => {
+    setLoading(true);
+    let userToLogin = mockUsers.find(u => u.email === email);
+    if (!userToLogin) {
+        userToLogin = mockUsers.find(u => u.role === 'customer')!;
+    }
+    mockLogin(userToLogin);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setLoading(false);
+  }
+  
+  const signUpWithEmail = async (displayName: string, email: string) => {
+    setLoading(true);
+    const newUser: AppUser = {
+        uid: String(Date.now()),
+        email,
+        displayName,
+        photoURL: `https://i.pravatar.cc/150?u=${email}`,
+        role: 'customer'
+    };
+    mockLogin(newUser);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setLoading(false);
+  }
 
   const handleSignOut = async () => {
     setLoading(true);
     setUser(null);
     setFirebaseUser(null);
     setRole(null);
-    // Simulate network delay
     await new Promise(resolve => setTimeout(resolve, 500));
     setLoading(false);
   };
 
-  const value = { user, firebaseUser, role, loading, signInWithGoogle, signOut: handleSignOut };
+  const value = { user, firebaseUser, role, loading, signInWithGoogle, signOut: handleSignOut, signInWithEmail, signUpWithEmail };
 
   return (
     <AuthContext.Provider value={value}>

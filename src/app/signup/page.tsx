@@ -13,20 +13,21 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 
-const loginSchema = z.object({
+const signupSchema = z.object({
+  displayName: z.string().min(1, { message: "Name is required." }),
   email: z.string().email({ message: "Invalid email address." }),
-  password: z.string().min(1, { message: "Password is required." }),
+  password: z.string().min(8, { message: "Password must be at least 8 characters." }),
 });
 
-export default function LoginPage() {
-  const { user, role, loading, signInWithGoogle, signInWithEmail } = useAuth();
+export default function SignupPage() {
+  const { user, role, loading, signUpWithEmail } = useAuth();
   const router = useRouter();
 
-  const form = useForm<z.infer<typeof loginSchema>>({
-    resolver: zodResolver(loginSchema),
+  const form = useForm<z.infer<typeof signupSchema>>({
+    resolver: zodResolver(signupSchema),
     defaultValues: {
+      displayName: "",
       email: "",
       password: "",
     },
@@ -34,16 +35,12 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!loading && user) {
-      if (role === 'admin') {
-        router.push('/admin');
-      } else {
-        router.push('/dashboard');
-      }
+      router.push('/dashboard');
     }
-  }, [user, role, loading, router]);
+  }, [user, loading, router]);
 
-  const onSubmit = async (values: z.infer<typeof loginSchema>) => {
-    await signInWithEmail(values.email);
+  const onSubmit = async (values: z.infer<typeof signupSchema>) => {
+    await signUpWithEmail(values.displayName, values.email);
   };
 
   if (loading || user) {
@@ -56,18 +53,31 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
-       <div className="absolute top-8 flex items-center gap-2">
-          <AppLogo className="h-8 w-auto" />
-          <span className="text-xl font-bold">FreshMart</span>
-        </div>
+      <div className="absolute top-8 flex items-center gap-2">
+        <AppLogo className="h-8 w-auto" />
+        <span className="text-xl font-bold">FreshMart</span>
+      </div>
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Welcome Back!</CardTitle>
-          <CardDescription>Sign in to continue to FreshMart</CardDescription>
+          <CardTitle className="text-2xl">Create an Account</CardTitle>
+          <CardDescription>Get started with FreshMart today!</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="displayName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Full Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="John Doe" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="email"
@@ -96,30 +106,15 @@ export default function LoginPage() {
               />
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Sign In
+                Create Account
               </Button>
             </form>
           </Form>
           
-          <div className="relative my-4">
-            <Separator />
-            <span className="absolute left-1/2 -translate-x-1/2 top-[-10px] bg-card px-2 text-xs text-muted-foreground">OR</span>
-          </div>
-
-          <Button 
-            variant="outline"
-            onClick={signInWithGoogle} 
-            className="w-full"
-            disabled={loading}
-          >
-            <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 126 23.4 172.9 61.9l-76.2 74.8C307.7 102.3 279.6 88 248 88c-73.2 0-132.3 59.2-132.3 132S174.8 352 248 352c78.8 0 118.9-52.6 123.4-78.9H248v-95.3h236.3c4.7 25.4 7.7 53.8 7.7 82.1z"></path></svg>
-            Sign in with Google
-          </Button>
-
           <p className="mt-4 text-center text-sm text-muted-foreground">
-            Don't have an account?{" "}
-            <Link href="/signup" className="font-semibold text-primary hover:underline">
-              Sign up
+            Already have an account?{" "}
+            <Link href="/" className="font-semibold text-primary hover:underline">
+              Sign in
             </Link>
           </p>
         </CardContent>

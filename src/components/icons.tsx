@@ -14,7 +14,7 @@ export const AppLogo = ({ className }: { className?: string }) => (
       fontSize="16"
       fontWeight="bold"
     >
-      Retain.ai
+      FreshMart
     </text>
   </svg>
 );

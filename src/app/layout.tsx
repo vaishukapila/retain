@@ -4,8 +4,8 @@ import { AuthProvider } from '@/hooks/use-auth';
 import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
-  title: 'Retain.ai',
-  description: 'An AI-driven retail web application focused on customer retention and engagement.',
+  title: 'FreshMart',
+  description: 'Your neighborhood online grocery store.',
 };
 
 export default function RootLayout({
