@@ -84,23 +84,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     console.error("Authentication error:", error);
     let description = "An unknown error occurred.";
     if (typeof error.code === 'string') {
-      switch (error.code) {
-        case 'auth/user-not-found':
-        case 'auth/wrong-password':
-        case 'auth/invalid-credential':
-          description = "Invalid email or password.";
-          break;
-        case 'auth/email-already-in-use':
-          description = "This email is already registered.";
-          break;
-        case 'auth/weak-password':
-          description = "The password must be at least 8 characters long.";
-          break;
-        case 'auth/popup-closed-by-user':
-          description = "Sign-in was cancelled.";
-          break;
-        default:
-          description = error.message;
+      const code = error.code;
+      if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+        description = "Invalid email or password.";
+      } else if (code === 'auth/email-already-in-use') {
+        description = "This email is already registered.";
+      } else if (code === 'auth/weak-password') {
+        description = "The password must be at least 8 characters long.";
+      } else if (code === 'auth/popup-closed-by-user') {
+        description = "Sign-in was cancelled.";
+      } else if (code.includes('identity-toolkit-api-has-not-been-used')) {
+        description = "Authentication is not enabled for this project. Please enable the Identity Toolkit API in your Google Cloud console and try again.";
+      }
+      else {
+        description = error.message;
       }
     }
     toast({
