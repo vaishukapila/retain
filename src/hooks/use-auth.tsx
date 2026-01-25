@@ -87,7 +87,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    // This listener handles all authentication state changes.
     const unsubscribe = onAuthStateChanged(auth, async firebaseUser => {
       if (firebaseUser) {
         setLoading(true);
@@ -95,33 +94,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const userDocSnap = await getDoc(userDocRef);
 
         if (userDocSnap.exists()) {
-          // If the user document exists, use its data
           const appUser = userDocSnap.data() as AppUser;
           setUser(appUser);
           setRole(appUser.role);
         } else {
-          // This case handles first-time sign-in with a social provider (e.g., Google)
-          // by creating the user document on the fly.
+          // Handles first-time sign-in with a social provider (e.g., Google)
+          const userRole =
+            firebaseUser.email?.toLowerCase() === 'admin@freshmart.com'
+              ? 'admin'
+              : 'customer';
+
           const newUserData: AppUser = {
             uid: firebaseUser.uid,
             email: firebaseUser.email,
             displayName: firebaseUser.displayName,
             photoURL: firebaseUser.photoURL,
-            role: 'customer', // All new users default to 'customer'
+            role: userRole,
           };
           await setDoc(userDocRef, newUserData);
           setUser(newUserData);
-          setRole('customer');
+          setRole(userRole);
         }
       } else {
-        // No user is signed in
         setUser(null);
         setRole(null);
       }
       setLoading(false);
     });
 
-    return () => unsubscribe(); // Cleanup subscription on unmount
+    return () => unsubscribe();
   }, [auth, firestore]);
 
   const signInWithGoogle = async () => {
@@ -155,16 +156,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       );
       await updateProfile(userCredential.user, { displayName });
 
-      // Explicitly create the user document here. `onAuthStateChanged` will then read it.
       const userRef = doc(firestore, 'users', userCredential.user.uid);
+      const userRole =
+        email.toLowerCase() === 'admin@freshmart.com' ? 'admin' : 'customer';
+
       const newUserData: AppUser = {
         uid: userCredential.user.uid,
         email: userCredential.user.email,
         displayName: displayName,
         photoURL: userCredential.user.photoURL,
-        role: 'customer', // All new users default to 'customer'
+        role: userRole,
       };
       await setDoc(userRef, newUserData);
+      // onAuthStateChanged will then read the newly created user data.
     } catch (error) {
       handleError(error);
     }
@@ -173,7 +177,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signOut = async () => {
     try {
       await firebaseSignOut(auth);
-      // `onAuthStateChanged` will clear user state.
     } catch (error) {
       handleError(error);
     }
@@ -190,8 +193,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     signOut,
   };
 
-  // The AuthProvider handles its own loading state, showing a spinner
-  // only during the initial authentication check.
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center">
