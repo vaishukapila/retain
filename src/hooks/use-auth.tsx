@@ -6,7 +6,6 @@ import React, {
   useState,
   useEffect,
   ReactNode,
-  useCallback,
 } from 'react';
 import {
   GoogleAuthProvider,
@@ -15,18 +14,10 @@ import {
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   updateProfile,
-  onAuthStateChanged,
   type User as FirebaseUser,
+  onAuthStateChanged,
 } from 'firebase/auth';
-import {
-  doc,
-  setDoc,
-  getDoc,
-  collection,
-  query,
-  limit,
-  getDocs,
-} from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { useToast } from './use-toast';
 import { useFirebase } from '@/firebase/provider';
 import type { User as AppUser } from '@/lib/types';
@@ -63,10 +54,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (error.code) {
       switch (error.code) {
         case 'auth/invalid-credential':
-          description = 'Invalid email or password. If you are a new user, please sign up.';
+          description =
+            'Invalid credentials. If you are a new user, please sign up first.';
           break;
         case 'auth/email-already-in-use':
-          description = 'This email is already registered.';
+          description = 'This email is already registered. Please sign in.';
           break;
         case 'auth/weak-password':
           description = 'Password should be at least 8 characters.';
@@ -78,15 +70,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         case 'auth/popup-closed-by-user':
           description = 'Sign-in process was cancelled.';
           break;
-        case 'auth/identity-toolkit-api-has-not-been-used-in-project-885460961560-before-or-it-is-disabled.-enable-it-by-visiting-https://console.developers.google.com/apis/api/identitytoolkit.googleapis.com/overview?project=885460961560-then-retry.-if-you-enabled-this-api-recently,-wait-a-few-minutes-for-the-action-to-propagate-to-our-systems-and-retry.':
-          description = 'Authentication service is not enabled. Please enable the Identity Toolkit API in your Google Cloud console.';
-          break;
         default:
           description = error.message;
           break;
       }
     } else if (error.message?.includes('quota')) {
-      description = 'The authentication service is currently experiencing high demand. Please try again later.';
+      description =
+        'The authentication service is currently experiencing high demand. Please try again later.';
     }
 
     toast({
@@ -96,82 +86,49 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
-  const createFirestoreUser = async (
-    firebaseUser: FirebaseUser,
-    displayName?: string
-  ) => {
-    const userRef = doc(firestore, 'users', firebaseUser.uid);
-    const userDoc = await getDoc(userRef);
-    if (!userDoc.exists()) {
-      // Check if this is the first user
-      const usersQuery = query(collection(firestore, 'users'), limit(1));
-      const usersSnapshot = await getDocs(usersQuery);
-
-      const newRole = usersSnapshot.empty ? 'admin' : 'customer';
-
-      await setDoc(userRef, {
-        uid: firebaseUser.uid,
-        email: firebaseUser.email,
-        displayName: displayName || firebaseUser.displayName,
-        photoURL: firebaseUser.photoURL,
-        role: newRole,
-      });
-    }
-  };
-
-  const fetchUserRole = useCallback(
-    async (uid: string) => {
-      const userDocRef = doc(firestore, 'users', uid);
-      const userDoc = await getDoc(userDocRef);
-      if (userDoc.exists()) {
-        const userData = userDoc.data() as AppUser;
-        setRole(userData.role);
-        setUser(userData);
-      } else {
-        const adminDocRef = doc(firestore, 'roles_admin', uid);
-        const adminDoc = await getDoc(adminDocRef);
-        if (adminDoc.exists()) {
-          setRole('admin');
-        } else {
-          setRole('customer');
-        }
-      }
-    },
-    [firestore]
-  );
-  
   useEffect(() => {
-    setLoading(isUserLoading);
-     if (isUserLoading) {
-      setUser(null);
-      setRole(null);
-      return;
-    }
-
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    // This listener handles all authentication state changes.
+    const unsubscribe = onAuthStateChanged(auth, async firebaseUser => {
       if (firebaseUser) {
-        await fetchUserRole(firebaseUser.uid);
+        setLoading(true);
         const userDocRef = doc(firestore, 'users', firebaseUser.uid);
         const userDocSnap = await getDoc(userDocRef);
-        if(userDocSnap.exists()) {
-            setUser(userDocSnap.data() as AppUser);
+
+        if (userDocSnap.exists()) {
+          // If the user document exists, use its data
+          const appUser = userDocSnap.data() as AppUser;
+          setUser(appUser);
+          setRole(appUser.role);
+        } else {
+          // This case handles first-time sign-in with a social provider (e.g., Google)
+          // by creating the user document on the fly.
+          const newUserData: AppUser = {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName,
+            photoURL: firebaseUser.photoURL,
+            role: 'customer', // All new users default to 'customer'
+          };
+          await setDoc(userDocRef, newUserData);
+          setUser(newUserData);
+          setRole('customer');
         }
       } else {
+        // No user is signed in
         setUser(null);
         setRole(null);
       }
       setLoading(false);
     });
 
-    return () => unsubscribe();
-  }, [auth, fetchUserRole, firestore, isUserLoading]);
-
+    return () => unsubscribe(); // Cleanup subscription on unmount
+  }, [auth, firestore]);
 
   const signInWithGoogle = async () => {
     try {
       const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      await createFirestoreUser(result.user);
+      await signInWithPopup(auth, provider);
+      // `onAuthStateChanged` will handle creating the user document.
     } catch (error) {
       handleError(error);
     }
@@ -191,27 +148,39 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     password: string
   ) => {
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
       await updateProfile(userCredential.user, { displayName });
-      await createFirestoreUser(userCredential.user, displayName);
+
+      // Explicitly create the user document here. `onAuthStateChanged` will then read it.
+      const userRef = doc(firestore, 'users', userCredential.user.uid);
+      const newUserData: AppUser = {
+        uid: userCredential.user.uid,
+        email: userCredential.user.email,
+        displayName: displayName,
+        photoURL: userCredential.user.photoURL,
+        role: 'customer', // All new users default to 'customer'
+      };
+      await setDoc(userRef, newUserData);
     } catch (error) {
       handleError(error);
     }
   };
 
   const signOut = async () => {
-    setLoading(true);
     try {
       await firebaseSignOut(auth);
-      // user state will be cleared by onAuthStateChanged
+      // `onAuthStateChanged` will clear user state.
     } catch (error) {
       handleError(error);
-      setLoading(false);
     }
   };
 
   const value = {
-    user: user,
+    user,
     firebaseUser: auth.currentUser,
     role,
     loading,
@@ -220,20 +189,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     signUpWithEmail,
     signOut,
   };
-  
-  if (isUserLoading) {
-      return (
+
+  // The AuthProvider handles its own loading state, showing a spinner
+  // only during the initial authentication check.
+  if (loading) {
+    return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
       </div>
     );
   }
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {
