@@ -55,11 +55,14 @@ export interface SupportTicket {
 }
 
 export interface Notification {
-  id: string;
+  id:string;
   title: string;
   message: string;
   notificationDate: string;
   type: 'announcement' | 'promo' | 'maintenance';
 }
 
-    
+export interface FAQ {
+  question: string;
+  answer: string;
+}

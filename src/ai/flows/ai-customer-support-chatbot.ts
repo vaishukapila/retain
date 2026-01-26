@@ -16,10 +16,19 @@ const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
 const RATE_LIMIT_MAX_CALLS = 10; // Max 10 calls per user per minute
 const userRequests = new Map<string, number[]>();
 
+const FAQSchema = z.object({
+  question: z.string(),
+  answer: z.string(),
+});
+
 const AiCustomerSupportChatbotInputSchema = z.object({
   query: z.string().describe('The customer query.'),
   userName: z.string().optional().describe("The user's display name."),
   userId: z.string().describe("The user's unique ID for rate limiting."),
+  faqs: z
+    .array(FAQSchema)
+    .optional()
+    .describe('A list of frequently asked questions to use as context.'),
 });
 export type AiCustomerSupportChatbotInput = z.infer<
   typeof AiCustomerSupportChatbotInputSchema
@@ -73,6 +82,17 @@ const prompt = ai.definePrompt({
   // as we handle errors in the flow logic.
   output: {schema: SuccessResponseSchema},
   prompt: `You are FreshMart AI, an assistant inside a grocery and retail web app.
+
+{{#if faqs}}
+First, check if the user's query can be answered from the following Frequently Asked Questions. If it is a close match, use the provided answer as your primary source of truth.
+
+FAQs:
+{{#each faqs}}
+Q: {{question}}
+A: {{answer}}
+---
+{{/each}}
+{{/if}}
 
 Your responsibilities:
 - Help users find products by name, category, brand, dietary needs, and price range.
@@ -129,22 +149,27 @@ const aiCustomerSupportChatbotFlow = ai.defineFlow(
         return output!;
       } catch (e: any) {
         console.error(
-          `AI generation attempt ${attempt + 1} failed for user ${input.userId}:`,
+          `AI generation attempt ${attempt + 1} failed for user ${
+            input.userId
+          }:`,
           JSON.stringify(e, null, 2)
         );
 
         // Check for 429 / Quota Exceeded error
         const isQuotaError =
-          (e.status === 429 || e.code === 429) ||
+          e.status === 429 ||
+          e.code === 429 ||
           (typeof e.message === 'string' &&
             (e.message.includes('429') ||
-             e.message.toLowerCase().includes('quota') ||
-             e.message.toLowerCase().includes('rate limit') ||
-             e.message.includes('RESOURCE_EXHAUSTED')));
-        
+              e.message.toLowerCase().includes('quota') ||
+              e.message.toLowerCase().includes('rate limit') ||
+              e.message.includes('RESOURCE_EXHAUSTED')));
+
         if (isQuotaError && attempt < maxRetries - 1) {
           const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
-          console.log(`Quota error detected. Retrying in ${delay.toFixed(0)}ms...`);
+          console.log(
+            `Quota error detected. Retrying in ${delay.toFixed(0)}ms...`
+          );
           await new Promise(resolve => setTimeout(resolve, delay));
           continue; // Continue to the next retry attempt
         }
@@ -158,7 +183,8 @@ const aiCustomerSupportChatbotFlow = ai.defineFlow(
     return {
       error: true,
       code: 'GENERATION_ERROR',
-      message: "Sorry, I'm having trouble connecting. Please try again in a moment.",
+      message:
+        "Sorry, I'm having trouble connecting. Please try again in a moment.",
     };
   }
 );

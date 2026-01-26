@@ -24,6 +24,7 @@ import {
   LifeBuoy,
   Bell,
   Loader2,
+  MessageSquareQuestion,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -75,6 +76,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       label: "Support",
       icon: LifeBuoy,
     },
+    {
+      href: "/admin/faqs",
+      label: "FAQs",
+      icon: MessageSquareQuestion,
+    },
   ];
 
   return (
@@ -122,4 +128,3 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     </SidebarProvider>
   );
 }
-    

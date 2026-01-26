@@ -7,9 +7,13 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/hooks/use-auth';
 import { cn } from '@/lib/utils';
-import { Loader2, Send } from 'lucide-react';
+import { Loader2, Send, Lightbulb } from 'lucide-react';
 import { aiCustomerSupportChatbot } from '@/ai/flows/ai-customer-support-chatbot';
 import { useToast } from '@/hooks/use-toast';
+import { useCollection, useFirebase, useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
+import type { FAQ } from '@/lib/types';
+import { Card, CardContent } from '@/components/ui/card';
 
 interface Message {
   id: number;
@@ -19,35 +23,45 @@ interface Message {
 
 export default function SupportPage() {
   const { user } = useAuth();
+  const { firestore } = useFirebase();
   const [messages, setMessages] = useState<Message[]>([
     { id: 1, text: 'Hello! How can I assist you today?', sender: 'ai' },
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [errorOccurred, setErrorOccurred] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading || !user) return;
+  const faqsQuery = useMemoFirebase(
+    () => (firestore ? collection(firestore, 'faqs') : null),
+    [firestore]
+  );
+  const { data: faqs, isLoading: isLoadingFaqs } = useCollection<FAQ>(faqsQuery);
 
-    const userMessage: Message = { id: Date.now(), text: input, sender: 'user' };
+  const handleSendMessage = async (e: React.FormEvent, query?: string) => {
+    e.preventDefault();
+    const currentQuery = query || input;
+    if (!currentQuery.trim() || isLoading || !user) return;
+
+    const userMessage: Message = { id: Date.now(), text: currentQuery, sender: 'user' };
     setMessages(prev => [...prev, userMessage]);
-    const currentQuery = input;
     setInput('');
     setIsLoading(true);
+    setErrorOccurred(false);
 
     try {
       const result = await aiCustomerSupportChatbot({
         query: currentQuery,
         userName: user.displayName || undefined,
         userId: user.uid,
+        faqs: faqs || [],
       });
 
       let responseText: string;
 
       if (result.error) {
-        // If the flow returns a structured error, display it
+        setErrorOccurred(true);
         responseText = result.message;
         toast({
           variant: 'destructive',
@@ -55,7 +69,6 @@ export default function SupportPage() {
           description: result.message,
         });
       } else {
-        // Otherwise, display the successful answer
         responseText = result.answer;
       }
       
@@ -68,7 +81,7 @@ export default function SupportPage() {
       setMessages(prev => [...prev, aiMessage]);
 
     } catch (e: any) {
-      // This is a fallback for unexpected network/server errors, not AI errors
+      setErrorOccurred(true);
       const fallbackMessage = "An unexpected error occurred. Please check your connection and try again.";
       toast({
         variant: 'destructive',
@@ -163,6 +176,28 @@ export default function SupportPage() {
                   <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                 </div>
               </div>
+            )}
+             {errorOccurred && !isLoadingFaqs && faqs && faqs.length > 0 && (
+              <Card className="bg-background/50">
+                <CardContent className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                        <Lightbulb className="h-5 w-5 text-yellow-400" />
+                        <h3 className="font-semibold">Having trouble? Maybe these can help:</h3>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                    {faqs.slice(0, 3).map((faq) => (
+                        <Button
+                        key={faq.id}
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => handleSendMessage(e, faq.question)}
+                        >
+                        {faq.question}
+                        </Button>
+                    ))}
+                    </div>
+                </CardContent>
+              </Card>
             )}
           </div>
         </ScrollArea>
