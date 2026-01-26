@@ -152,7 +152,7 @@ const aiCustomerSupportChatbotFlow = ai.defineFlow(
           `AI generation attempt ${attempt + 1} failed for user ${
             input.userId
           }:`,
-          JSON.stringify(e, null, 2)
+          e
         );
 
         // Check for 429 / Quota Exceeded error
