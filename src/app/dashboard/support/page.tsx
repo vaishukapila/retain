@@ -41,32 +41,46 @@ export default function SupportPage() {
       const result = await aiCustomerSupportChatbot({
         query: currentQuery,
         userName: user.displayName || undefined,
-       });
+        userId: user.uid,
+      });
 
+      let responseText: string;
+
+      if (result.error) {
+        // If the flow returns a structured error, display it
+        responseText = result.message;
+        toast({
+          variant: 'destructive',
+          title: 'AI Assistant Error',
+          description: result.message,
+        });
+      } else {
+        // Otherwise, display the successful answer
+        responseText = result.answer;
+      }
+      
       const aiMessage: Message = {
         id: Date.now() + 1,
-        text: result.answer,
+        text: responseText,
         sender: 'ai',
       };
   
       setMessages(prev => [...prev, aiMessage]);
+
     } catch (e: any) {
-        let messageText = "Sorry, I'm having trouble connecting. Please try again later.";
-        if (e?.message?.includes('quota')) {
-          messageText =
-            'The AI assistant is currently experiencing high demand and has exceeded its usage limit. Please try again later.';
-        }
-        toast({
-          variant: 'destructive',
-          title: 'AI Assistant Error',
-          description: messageText,
-        });
-        const errorMessage: Message = {
-            id: Date.now() + 1,
-            text: messageText,
-            sender: 'ai',
-        };
-        setMessages(prev => [...prev, errorMessage]);
+      // This is a fallback for unexpected network/server errors, not AI errors
+      const fallbackMessage = "An unexpected error occurred. Please check your connection and try again.";
+      toast({
+        variant: 'destructive',
+        title: 'Network Error',
+        description: fallbackMessage,
+      });
+      const errorMessage: Message = {
+          id: Date.now() + 1,
+          text: fallbackMessage,
+          sender: 'ai',
+      };
+      setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }

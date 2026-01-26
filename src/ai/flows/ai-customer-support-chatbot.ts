@@ -11,15 +11,23 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
+// Rate limiting configuration (in-memory)
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+const RATE_LIMIT_MAX_CALLS = 10; // Max 10 calls per user per minute
+const userRequests = new Map<string, number[]>();
+
 const AiCustomerSupportChatbotInputSchema = z.object({
   query: z.string().describe('The customer query.'),
   userName: z.string().optional().describe("The user's display name."),
+  userId: z.string().describe("The user's unique ID for rate limiting."),
 });
 export type AiCustomerSupportChatbotInput = z.infer<
   typeof AiCustomerSupportChatbotInputSchema
 >;
 
-const AiCustomerSupportChatbotOutputSchema = z.object({
+// Define separate schemas for success and error responses
+const SuccessResponseSchema = z.object({
+  error: z.literal(false).optional(),
   answer: z
     .string()
     .describe('Short natural language reply for the chat bubble.'),
@@ -35,6 +43,19 @@ const AiCustomerSupportChatbotOutputSchema = z.object({
     .optional()
     .describe('A list of recommended products.'),
 });
+
+const ErrorResponseSchema = z.object({
+  error: z.literal(true),
+  code: z.string(),
+  message: z.string(),
+});
+
+// The final output is a union of the two possible responses
+const AiCustomerSupportChatbotOutputSchema = z.union([
+  SuccessResponseSchema,
+  ErrorResponseSchema,
+]);
+
 export type AiCustomerSupportChatbotOutput = z.infer<
   typeof AiCustomerSupportChatbotOutputSchema
 >;
@@ -48,7 +69,9 @@ export async function aiCustomerSupportChatbot(
 const prompt = ai.definePrompt({
   name: 'aiCustomerSupportChatbotPrompt',
   input: {schema: AiCustomerSupportChatbotInputSchema},
-  output: {schema: AiCustomerSupportChatbotOutputSchema},
+  // Note: The output schema for the prompt itself is the SUCCESS case,
+  // as we handle errors in the flow logic.
+  output: {schema: SuccessResponseSchema},
   prompt: `You are FreshMart AI, an assistant inside a grocery and retail web app.
 
 Your responsibilities:
@@ -80,7 +103,62 @@ const aiCustomerSupportChatbotFlow = ai.defineFlow(
     outputSchema: AiCustomerSupportChatbotOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
-    return output!;
+    // 1. Server-side Rate Limiting
+    const now = Date.now();
+    const userTimestamps = userRequests.get(input.userId) || [];
+    const recentTimestamps = userTimestamps.filter(
+      ts => now - ts < RATE_LIMIT_WINDOW_MS
+    );
+
+    if (recentTimestamps.length >= RATE_LIMIT_MAX_CALLS) {
+      console.log(`Rate limit exceeded for user ${input.userId}`);
+      return {
+        error: true,
+        code: 'RATE_LIMIT',
+        message:
+          'We’re getting a lot of AI requests right now. Please wait a few seconds and try again.',
+      };
+    }
+    userRequests.set(input.userId, [...recentTimestamps, now]);
+
+    // 2. Retry with Exponential Backoff
+    const maxRetries = 3;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const {output} = await prompt(input);
+        return output!;
+      } catch (e: any) {
+        console.error(
+          `AI generation attempt ${attempt + 1} failed for user ${input.userId}:`,
+          JSON.stringify(e, null, 2)
+        );
+
+        // Check for 429 / Quota Exceeded error
+        const isQuotaError =
+          (e.status === 429 || e.code === 429) ||
+          (typeof e.message === 'string' &&
+            (e.message.includes('429') ||
+             e.message.toLowerCase().includes('quota') ||
+             e.message.toLowerCase().includes('rate limit') ||
+             e.message.includes('RESOURCE_EXHAUSTED')));
+        
+        if (isQuotaError && attempt < maxRetries - 1) {
+          const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+          console.log(`Quota error detected. Retrying in ${delay.toFixed(0)}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue; // Continue to the next retry attempt
+        }
+
+        // If it's the last attempt or not a quota error, break and return a generic error
+        break;
+      }
+    }
+
+    // 3. Return generic error if all retries fail
+    return {
+      error: true,
+      code: 'GENERATION_ERROR',
+      message: "Sorry, I'm having trouble connecting. Please try again in a moment.",
+    };
   }
 );
