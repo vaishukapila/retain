@@ -7,23 +7,18 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/hooks/use-auth';
 import { cn } from '@/lib/utils';
-import { Loader2, Send, AlertTriangle } from 'lucide-react';
+import { Loader2, Send } from 'lucide-react';
 import { aiCustomerSupportChatbot } from '@/ai/flows/ai-customer-support-chatbot';
-import { useFirebase } from '@/firebase';
-import { addDocumentNonBlocking } from '@/firebase';
-import { collection } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
 interface Message {
   id: number;
   text: string;
   sender: 'user' | 'ai';
-  isEscalated?: boolean;
 }
 
 export default function SupportPage() {
-  const { user, firebaseUser } = useAuth();
-  const { firestore } = useFirebase();
+  const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([
     { id: 1, text: 'Hello! How can I assist you today?', sender: 'ai' },
   ]);
@@ -34,7 +29,7 @@ export default function SupportPage() {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading || !firebaseUser) return;
+    if (!input.trim() || isLoading || !user) return;
 
     const userMessage: Message = { id: Date.now(), text: input, sender: 'user' };
     setMessages(prev => [...prev, userMessage]);
@@ -43,25 +38,15 @@ export default function SupportPage() {
     setIsLoading(true);
 
     try {
-      const result = await aiCustomerSupportChatbot({ query: currentQuery });
-      
-      if (result.escalateToAdmin) {
-        const ticketsCollection = collection(firestore, 'support_tickets');
-        addDocumentNonBlocking(ticketsCollection, {
-          userId: firebaseUser.uid,
-          customerName: firebaseUser.displayName,
-          userEmail: firebaseUser.email,
-          creationDate: new Date().toISOString(),
-          subject: currentQuery,
-          status: 'Open',
-        });
-      }
-      
+      const result = await aiCustomerSupportChatbot({
+        query: currentQuery,
+        userName: user.displayName || undefined,
+       });
+
       const aiMessage: Message = {
         id: Date.now() + 1,
-        text: result.response,
+        text: result.answer,
         sender: 'ai',
-        isEscalated: result.escalateToAdmin,
       };
   
       setMessages(prev => [...prev, aiMessage]);
@@ -80,7 +65,6 @@ export default function SupportPage() {
             id: Date.now() + 1,
             text: messageText,
             sender: 'ai',
-            isEscalated: false,
         };
         setMessages(prev => [...prev, errorMessage]);
     } finally {
@@ -143,15 +127,6 @@ export default function SupportPage() {
                   >
                     <p className="text-sm">{message.text}</p>
                   </div>
-                  {message.isEscalated && (
-                    <div className="mt-2 flex items-center gap-2 text-sm text-amber-600 border border-amber-200 bg-amber-50 p-2 rounded-md">
-                      <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-                      <span>
-                        This issue has been escalated to a support agent. They
-                        will get back to you soon.
-                      </span>
-                    </div>
-                  )}
                 </div>
                 {message.sender === 'user' && user && (
                   <Avatar className="h-8 w-8">
