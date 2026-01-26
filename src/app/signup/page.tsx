@@ -65,7 +65,7 @@ export default function SignupPage() {
         <h1 className="mb-8 text-5xl font-cursive text-white drop-shadow-md">
           FreshMart
         </h1>
-        <Card className="w-full max-w-sm">
+        <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">Create an Account</CardTitle>
             <CardDescription>Get started with FreshMart today!</CardDescription>
