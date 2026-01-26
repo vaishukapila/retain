@@ -55,11 +55,9 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
-      <div className="absolute top-8">
-        <h1 className="text-5xl font-cursive bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-          FreshMart
-        </h1>
-      </div>
+      <h1 className="mb-8 text-5xl font-cursive bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+        FreshMart
+      </h1>
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Welcome Back!</CardTitle>
