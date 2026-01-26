@@ -68,7 +68,7 @@ export default function LoginPage() {
         <h1 className="mb-8 text-5xl font-cursive text-white drop-shadow-md">
           FreshMart
         </h1>
-        <Card className="w-full max-w-lg">
+        <Card className="w-full max-w-xl">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">Welcome Back!</CardTitle>
             <CardDescription>Sign in to continue to FreshMart</CardDescription>
