@@ -4,7 +4,6 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
-import { AppLogo } from '@/components/icons';
 import { Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -53,9 +52,10 @@ export default function SignupPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
-      <div className="absolute top-8 flex items-center gap-2">
-        <AppLogo className="h-8 w-auto" />
-        <span className="text-xl font-bold">FreshMart</span>
+      <div className="absolute top-8">
+        <h1 className="text-5xl font-cursive bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+          FreshMart
+        </h1>
       </div>
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
